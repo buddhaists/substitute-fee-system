@@ -230,12 +230,11 @@
             <div class="form-row">
               <div>
                 <label for="input-absent-teacher">請假教師姓名</label>
-                <input type="text" id="input-absent-teacher" placeholder="請填寫請假老師姓名" required>
+                <input type="text" id="input-absent-teacher" placeholder="例：楊琬瑄" required>
               </div>
               <div>
-                <!-- 不預設姓名：全校老師共用此表單，預設值會被誤送 -->
                 <label for="input-sub-teacher">代課教師姓名</label>
-                <input type="text" id="input-sub-teacher" placeholder="請填寫代課老師姓名" required>
+                <input type="text" id="input-sub-teacher" value="蔡志益" required>
               </div>
             </div>
 
@@ -336,24 +335,23 @@
       <div class="print-title" id="print-title-text">馬鳴國小外聘代課教師原任教師交代事項通知單</div>
       
       <table class="print-table">
-        <!-- 以下 print-val 內容一律由列印時的 JS 填入；此處不放範例姓名，避免真實教師姓名留在原始碼中 -->
         <tr>
           <td class="print-label">請假教師</td>
-          <td class="print-val" id="print-absent-teacher"></td>
+          <td class="print-val" id="print-absent-teacher">楊琬瑄</td>
           <td class="print-label">代課班級</td>
-          <td class="print-val" id="print-class"></td>
+          <td class="print-val" id="print-class">四甲</td>
         </tr>
         <tr>
           <td class="print-label">假別</td>
-          <td class="print-val" id="print-leave-type"></td>
+          <td class="print-val" id="print-leave-type">身心調適假</td>
           <td class="print-label">代課日期</td>
-          <td class="print-val" id="print-date"></td>
+          <td class="print-val" id="print-date">115年06月26日 星期(五)</td>
         </tr>
         <tr>
           <td class="print-label">導護工作</td>
-          <td class="print-val" id="print-duty"></td>
+          <td class="print-val" id="print-duty">無</td>
           <td class="print-label">代課教師</td>
-          <td class="print-val" id="print-sub-teacher"></td>
+          <td class="print-val" id="print-sub-teacher">蔡志益</td>
         </tr>
       </table>
 
@@ -393,34 +391,57 @@
 
   <!-- Javascript Logic for Teacher Page -->
   <script>
-    // --- 課表 ---
-    // 課表改由 Google 試算表的 Class_Timetables 分頁提供（後端 ?action=timetable）。
-    // 每學年換課表時，直接覆蓋該分頁內容即可，不需要修改本檔。
-    let TIMETABLE_DATABASE = {};
-
-    async function loadTimetable() {
-      const url = localStorage.getItem('gas_web_app_url');
-      if (!url) return false;
-      try {
-        const res = await fetch(`${url}?action=timetable`);
-        if (!res.ok) throw new Error('課表請求失敗');
-        const data = await res.json();
-        if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).length === 0) {
-          throw new Error('課表內容為空或格式不正確');
-        }
-        TIMETABLE_DATABASE = data;
-        return true;
-      } catch (err) {
-        console.error('載入課表失敗:', err);
-        return false;
+    // --- Timetable Database ---
+    const TIMETABLE_DATABASE = {
+      "一甲": {
+        1: { 1: { subject: "健康與體育(體育)", teacher: "李瑜華" }, 2: { subject: "生活課程(音樂)", teacher: "楊雅如" }, 3: { subject: "數學", teacher: "林俐彣" }, 4: { subject: "國語文", teacher: "林俐彣" } },
+        2: { 1: { subject: "國際素養", teacher: "林慧芸" }, 2: { subject: "數學", teacher: "林俐彣" }, 3: { subject: "國語文", teacher: "林俐彣" }, 4: { subject: "國語文", teacher: "林俐彣" }, 5: { subject: "馬鳴小公民", teacher: "林俐彣" }, 6: { subject: "生活課程(生活)", teacher: "林俐彣" }, 7: { subject: "生活課程(生活)", teacher: "林俐彣" } },
+        3: { 1: { subject: "數學", teacher: "林俐彣" }, 2: { subject: "本土語(客語)", teacher: "張馨如" }, 3: { subject: "國語文", teacher: "林俐彣" }, 4: { subject: "健康與體育(健康)", teacher: "林俐彣" } },
+        4: { 1: { subject: "生活課程(美術)", teacher: "謝淑娟" }, 2: { subject: "生活課程(美術)", teacher: "謝淑娟" }, 3: { subject: "國語文", teacher: "林俐彣" }, 4: { subject: "生活課程(生活)", teacher: "林俐彣" } },
+        5: { 1: { subject: "健康與體育(體育)", teacher: "李瑜華" }, 2: { subject: "國際素養", teacher: "林慧芸" }, 3: { subject: "數學", teacher: "林俐彣" }, 4: { subject: "國語文", teacher: "林俐彣" } }
+      },
+      "二甲": {
+        1: { 1: { subject: "健康與體育(體育)", teacher: "李君珮" }, 2: { subject: "生活課程(生活)", teacher: "李君珮" }, 3: { subject: "國語文", teacher: "黃敬芸" }, 4: { subject: "生活課程(音樂)", teacher: "楊雅如" } },
+        2: { 1: { subject: "馬鳴小公民", teacher: "黃敬芸" }, 2: { subject: "國際素養", teacher: "林慧芸" }, 3: { subject: "生活課程(生活)", teacher: "李君珮" }, 4: { subject: "生活課程(生活)", teacher: "李君珮" }, 5: { subject: "國語文", teacher: "黃敬芸" }, 6: { subject: "國語文", teacher: "黃敬芸" }, 7: { subject: "數學", teacher: "黃敬芸" } },
+        3: { 1: { subject: "國際素養", teacher: "林慧芸" }, 2: { subject: "本土語(台語)", teacher: "劉美宏" }, 3: { subject: "國語文", teacher: "黃敬芸" }, 4: { subject: "數學", teacher: "黃敬芸" } },
+        4: { 1: { subject: "生活課程(美術)", teacher: "陳薏如" }, 2: { subject: "生活課程(美術)", teacher: "陳薏如" }, 3: { subject: "國語文", teacher: "黃敬芸" }, 4: { subject: "數學", teacher: "黃敬芸" } },
+        5: { 1: { subject: "健康與體育(體育)", teacher: "李君珮" }, 2: { subject: "國語文", teacher: "黃敬芸" }, 3: { subject: "數學", teacher: "黃敬芸" }, 4: { subject: "健康與體育(健康)", teacher: "黃敬芸" } }
+      },
+      "三甲": {
+        1: { 1: { subject: "國語文", teacher: "林桓慶" }, 2: { subject: "數學", teacher: "林桓慶" }, 3: { subject: "藝術(音樂)", teacher: "楊雅如" }, 4: { subject: "電腦", teacher: "蔡志益" }, 5: { subject: "自然科學", teacher: "蔡志益" }, 6: { subject: "自然科學", teacher: "蔡志益" }, 7: { subject: "健康與體育(健康)", teacher: "蔡志益" } },
+        2: { 1: { subject: "社會", teacher: "李君珮" }, 2: { subject: "社會", teacher: "李君珮" }, 3: { subject: "數學", teacher: "林桓慶" }, 4: { subject: "國語文", teacher: "林桓慶" }, 5: { subject: "食農課程", teacher: "林桓慶" }, 6: { subject: "馬鳴小公民", teacher: "林桓慶" }, 7: { subject: "綜合活動", teacher: "林桓慶" } },
+        3: { 1: { subject: "健康與體育(體育)", teacher: "林桓慶" }, 2: { subject: "英語文", teacher: "林慧芸" }, 3: { subject: "本土語(客語)", teacher: "張馨如" }, 4: { subject: "數學", teacher: "林桓慶" } },
+        4: { 1: { subject: "國語文", teacher: "林桓慶" }, 2: { subject: "國語文", teacher: "林桓慶" }, 3: { subject: "綜合活動", teacher: "林桓慶" }, 4: { subject: "數學", teacher: "林桓慶" }, 5: { subject: "藝術(美術)", teacher: "陳薏如" }, 6: { subject: "藝術(美術)", teacher: "陳薏如" }, 7: { subject: "自然科學", teacher: "蔡志益" } },
+        5: { 1: { subject: "健康與體育(體育)", teacher: "林桓慶" }, 2: { subject: "社會", teacher: "李君珮" }, 3: { subject: "國際素養", teacher: "林慧芸" }, 4: { subject: "國語文", teacher: "林桓慶" } }
+      },
+      "四甲": {
+        1: { 1: { subject: "數學", teacher: "楊琬瑄" }, 2: { subject: "社會", teacher: "李瑜華" }, 3: { subject: "國語文", teacher: "楊琬瑄" }, 4: { subject: "國語文", teacher: "楊琬瑄" }, 5: { subject: "健康與體育(健康)", teacher: "楊琬瑄" }, 6: { subject: "藝術(音樂)", teacher: "楊雅如" }, 7: { subject: "國際素養", teacher: "徐楚茜" } },
+        2: { 1: { subject: "自然科學", teacher: "侯駿廉" }, 2: { subject: "自然科學", teacher: "侯駿廉" }, 3: { subject: "國語文", teacher: "楊琬瑄" }, 4: { subject: "電腦", teacher: "蔡志益" }, 5: { subject: "綜合活動", teacher: "楊琬瑄" }, 6: { subject: "綜合活動", teacher: "楊琬瑄" }, 7: { subject: "數學", teacher: "楊琬瑄" } },
+        3: { 1: { subject: "健康與體育(體育)", teacher: "李瑜華" }, 2: { subject: "食農課程", teacher: "蔡志益" }, 3: { subject: "本土語(台語)", teacher: "劉美宏" }, 4: { subject: "國語文", teacher: "楊琬瑄" } },
+        4: { 1: { subject: "健康與體育(體育)", teacher: "李瑜華" }, 2: { subject: "社會", teacher: "李瑜華" }, 3: { subject: "社會", teacher: "李瑜華" }, 4: { subject: "數學", teacher: "楊琬瑄" }, 5: { subject: "藝術(美術)", teacher: "謝淑娟" }, 6: { subject: "藝術(美術)", teacher: "謝淑娟" }, 7: { subject: "英語文", teacher: "徐楚茜" } },
+        5: { 1: { subject: "數學", teacher: "楊琬瑄" }, 2: { subject: "國語文", teacher: "楊琬瑄" }, 3: { subject: "自然科學", teacher: "侯駿廉" }, 4: { subject: "馬鳴小公民", teacher: "楊琬瑄" } }
+      },
+      "五甲": {
+        1: { 1: { subject: "國語文", teacher: "黃國城" }, 2: { subject: "數學", teacher: "黃國城" }, 3: { subject: "食農課程", teacher: "李君珮" }, 4: { subject: "國際素養", teacher: "李瑜華" }, 5: { subject: "藝術(音樂)", teacher: "楊雅如" }, 6: { subject: "英語文", teacher: "徐楚茜" }, 7: { subject: "綜合活動", teacher: "黃國城" } },
+        2: { 1: { subject: "健康與體育(體育)", teacher: "黃國城" }, 2: { subject: "國語文", teacher: "黃國城" }, 3: { subject: "自然科學", teacher: "朱從瑞" }, 4: { subject: "自然科學", teacher: "朱從瑞" }, 5: { subject: "馬鳴小公民", teacher: "黃國城" }, 6: { subject: "馬鳴小公民", teacher: "黃國城" }, 7: { subject: "綜合活動", teacher: "黃國城" } },
+        3: { 1: { subject: "社會", teacher: "魏瑋婷" }, 2: { subject: "社會", teacher: "魏瑋婷" }, 3: { subject: "數學", teacher: "黃國城" }, 4: { subject: "本土語(客語)", teacher: "張馨如" } },
+        4: { 1: { subject: "數學", teacher: "黃國城" }, 2: { subject: "國語文", teacher: "黃國城" }, 3: { subject: "藝術(美術)", teacher: "謝淑娟" }, 4: { subject: "藝術(美術)", teacher: "謝淑娟" }, 5: { subject: "社會", teacher: "魏瑋婷" }, 6: { subject: "英語文", teacher: "徐楚茜" }, 7: { subject: "電腦", teacher: "魏瑋婷" } },
+        5: { 1: { subject: "國語文", teacher: "黃國城" }, 2: { subject: "健康與體育(健康)", teacher: "李瑜華" }, 3: { subject: "國際素養", teacher: "李瑜華" }, 4: { subject: "國語文", teacher: "黃國城" }, 5: { subject: "自然科學", teacher: "朱從瑞" }, 6: { subject: "數學", teacher: "黃國城" }, 7: { subject: "健康與體育(體育)", teacher: "黃國城" } }
+      },
+      "六甲": {
+        1: { 1: { subject: "國語文", teacher: "戴綿綿" }, 2: { subject: "數學", teacher: "戴綿綿" }, 3: { subject: "社會", teacher: "林沁瑤" }, 4: { subject: "社會", teacher: "林沁瑤" }, 5: { subject: "綜合活動", teacher: "戴綿綿" }, 6: { subject: "馬鳴小公民", teacher: "戴綿綿" }, 7: { subject: "藝術(音樂)", teacher: "楊雅如" } },
+        2: { 1: { subject: "健康與體育(體育)", teacher: "紀乃綺" }, 2: { subject: "自然科學", teacher: "朱從瑞" }, 3: { subject: "國語文", teacher: "戴綿綿" }, 4: { subject: "健康與體育(健康)", teacher: "侯駿廉" }, 5: { subject: "綜合活動", teacher: "戴綿綿" }, 6: { subject: "食農課程", teacher: "戴綿綿" }, 7: { subject: "國際素養", teacher: "戴綿綿" } },
+        3: { 1: { subject: "國語文", teacher: "戴綿綿" }, 2: { subject: "數學", teacher: "戴綿綿" }, 3: { subject: "英語文", teacher: "林慧芸" }, 4: { subject: "本土語(台語)", teacher: "劉美宏" } },
+        4: { 1: { subject: "國語文", teacher: "戴綿綿" }, 2: { subject: "數學", teacher: "戴綿綿" }, 3: { subject: "藝術(美術)", teacher: "陳薏如" }, 4: { subject: "藝術(美術)", teacher: "陳薏如" }, 5: { subject: "馬鳴小公民", teacher: "戴綿綿" }, 6: { subject: "社會", teacher: "林沁瑤" }, 7: { subject: "健康與體育(體育)", teacher: "紀乃綺" } },
+        5: { 1: { subject: "國語文", teacher: "戴綿綿" }, 2: { subject: "數學", teacher: "戴綿綿" }, 3: { subject: "電腦", teacher: "林沁瑤" }, 4: { subject: "國際素養", teacher: "戴綿綿" }, 5: { subject: "英語文", teacher: "林慧芸" }, 6: { subject: "自然科學", teacher: "朱從瑞" }, 7: { subject: "自然科學", teacher: "朱從瑞" } }
       }
-    }
+    };
 
     // 115年費率：國小鐘點費 405元/節（依教育部114.12.31函）
     const RATE = 405;
 
-    // 預設雲端資料庫網址（2026-07-01 部署）：第一次開啟自動寫入，之後可用右上角齒輪修改
-    const DEFAULT_GAS_URL = '請在此填入您部屬後的_Google_Apps_Script_網頁應用程式URL';;
+    // 預設雲端資料庫網址（部署後填入）：第一次開啟自動寫入，之後可用右上角齒輪修改
+    const DEFAULT_GAS_URL = '請在此填入您部署後的_Google_Apps_Script_網頁應用程式URL';
     if (!localStorage.getItem('gas_web_app_url')) {
       localStorage.setItem('gas_web_app_url', DEFAULT_GAS_URL);
     }
@@ -458,10 +479,8 @@
 
       // Load Settings & Saved Values
       inputScriptUrl.value = localStorage.getItem('gas_web_app_url') || '';
+      inputSubTeacher.value = localStorage.getItem('saved_sub_teacher') || '蔡志益';
       inputSchool.value = localStorage.getItem('saved_school') || '馬鳴國小';
-      // 代課教師姓名一律留空：本表單全校共用，代課者每次不同，
-      // 預設值或記住上次的值都會被誤送（代課費會算到別人頭上）。
-      localStorage.removeItem('saved_sub_teacher'); // 清掉舊版留在瀏覽器的名字
 
       // Live Calc：一般模式算 節數 × 405；整天導師費模式則金額由後臺自算
       function calculateCurrentFee() {
@@ -572,6 +591,7 @@
         }
 
         // Save preferences
+        localStorage.setItem('saved_sub_teacher', inputSubTeacher.value.trim());
         localStorage.setItem('saved_school', inputSchool.value.trim());
 
         document.getElementById('print-absent-teacher').textContent = inputAbsentTeacher.value.trim();
@@ -691,7 +711,8 @@
           });
 
           
-          // Save preferences（不記住代課教師姓名：每次代課者不同，記住會被誤送）
+          // Save preferences
+          localStorage.setItem('saved_sub_teacher', inputSubTeacher.value.trim());
           localStorage.setItem('saved_school', inputSchool.value.trim());
           
           autoFillTimetable();
@@ -769,16 +790,8 @@ ${details.length > 0 ? details.join('\n') : '無特別勾選課堂'}
         }
       });
 
-      // 先向雲端取得課表，再帶入當日課程。
-      // 課表載入失敗時必須明講：否則老師會看到空白課表卻不知道原因，
-      // 以為「今天沒課」而漏填。
-      (async () => {
-        const ok = await loadTimetable();
-        if (!ok) {
-          alert('⚠️ 課表載入失敗，無法自動帶入課程。\n請檢查網路後重新整理；若持續失敗請聯絡教務處。\n（您仍可手動填寫科目後送出）');
-        }
-        autoFillTimetable();
-      })();
+      // Run initial check
+      autoFillTimetable();
     });
   </script>
 </body>
