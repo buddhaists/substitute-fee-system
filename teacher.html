@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>代課與交接單填報系統 (教師端)</title>
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+  
+  <style>
+    /* Custom styles for Teacher page */
+    .settings-trigger {
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: white;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      transition: all 0.2s;
+    }
+    .settings-trigger:hover {
+      background: rgba(255,255,255,0.3);
+      transform: rotate(30deg);
+    }
+    /* Settings Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal {
+      background: white;
+      padding: 1.75rem;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    .modal-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #1e3a8a;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .modal-buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      margin-top: 1.25rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    
+    <!-- Top Header -->
+    <header>
+      <div>
+        <h1><i class="fa-solid fa-file-signature"></i> 馬鳴國小代課與交接單填報</h1>
+        <p>請在此填寫您的假別與課務交接事項，填妥後可列印紙本並送出存檔</p>
+      </div>
+      
+      <!-- Settings Cog for Script URL -->
+      <button class="settings-trigger" id="btn-open-settings" title="設定雲端資料庫 URL">
+        <i class="fa-solid fa-gear"></i>
+      </button>
+    </header>
+
+    <!-- MAIN FORM -->
+    <main>
+      <div class="grid-layout">
+        
+        <!-- Left: Handover Schedule Table -->
+        <div class="panel">
+          <div class="panel-title">
+            <i class="fa-solid fa-list-check"></i> 課表與交接事項填寫
+          </div>
+          
+          <table class="period-table">
+            <thead>
+              <tr>
+                <th style="width: 8%; text-align: center;">代課</th>
+                <th style="width: 10%;">節次</th>
+                <th style="width: 15%;">時間</th>
+                <th style="width: 20%;">科目/活動</th>
+                <th>原任教師交代事項 (由原任教師填寫)</th>
+              </tr>
+            </thead>
+            <tbody id="schedule-tbody">
+              <!-- Non-paid preparation activities -->
+              <tr class="prep-row" data-period="早修" data-paid="false">
+                <td class="checkbox-container"><input type="checkbox"></td>
+                <td><strong>早修</strong></td>
+                <td>07:50~08:20</td>
+                <td><input type="text" placeholder="例：晨讀/自習" value="晨讀"></td>
+                <td><input type="text" placeholder="交代事項..."></td>
+              </tr>
+              <tr class="prep-row" data-period="打掃" data-paid="false">
+                <td class="checkbox-container"><input type="checkbox"></td>
+                <td><strong>打掃</strong></td>
+                <td>08:20~08:40</td>
+                <td><input type="text" placeholder="例：整潔活動" value="整潔活動"></td>
+                <td><input type="text" placeholder="交代事項..."></td>
+              </tr>
+              
+              <!-- Standard paid periods -->
+              <tr class="class-row" data-period="1" data-paid="true">
+                <td class="checkbox-container"><input type="checkbox" class="pay-trigger"></td>
+                <td><strong>第 1 節</strong></td>
+                <td>08:40~09:20</td>
+                <td><input type="text" placeholder="例：國語"></td>
+                <td><input type="text" placeholder="例如：課本第 102 頁，學習單寫完收回"></td>
+              </tr>
+              <tr class="class-row" data-period="2" data-paid="true">
+                <td class="checkbox-container"><input type="checkbox" class="pay-trigger"></td>
+                <td><strong>第 2 節</strong></td>
+                <td>09:30~10:10</td>
+                <td><input type="text" placeholder="例：數學"></td>
+                <td><input type="text" placeholder="交代事項..."></td>
+              </tr>
+              <tr class="class-row" data-period="3" data-paid="true">
+                <td class="checkbox-container"><input type="checkbox" class="pay-trigger"></td>
+                <td><strong>第 3 節</strong></td>
+                <td>10:25~11:05</td>
+                <td><input type="text" placeholder="例：英語"></td>
+                <td><input type="text" placeholder="交代事項..."></td>
+              </tr>
+              <tr class="class-row" data-period="4" data-paid="true">
+                <td class="checkbox-container"><input type="checkbox" class="pay-trigger"></td>
+                <td><strong>第 4 節</strong></td>
+                <td>11:15~11:55</td>
+                <td><input type="text" placeholder="例：社會"></td>
+                <td><input type="text" placeholder="交代事項..."></td>
+              </tr>
+              
+              <!-- Noon activities -->
+              <tr class="prep-row" data-period="午餐" data-paid="false">
+                <td class="checkbox-container"><input type="checkbox"></td>
+                <td><strong>午餐</strong></td>
+                <td>12:00~12:40</td>
+                <td><input type="text" placeholder="例：午餐指導" value="午餐指導"></td>
+                <td><input type="text" placeholder="交代事項..."></td>
+              </tr>
+              <tr class="prep-row" data-period="午休" data-paid="false">
+                <td class="checkbox-container"><input type="checkbox"></td>
+                <td><strong>午休</strong></td>
+                <td>12:40~13:20</td>
+                <td><input type="text" placeholder="例：午休值班" value="午休指導"></td>
+                <td><input type="text" placeholder="交代事項..."></td>
+              </tr>
+              
+              <!-- Afternoon paid periods -->
+              <tr class="class-row" data-period="5" data-paid="true">
+                <td class="checkbox-container"><input type="checkbox" class="pay-trigger"></td>
+                <td><strong>第 5 節</strong></td>
+                <td>13:30~14:10</td>
+                <td><input type="text" placeholder="例：自然"></td>
+                <td><input type="text" placeholder="交代事項..."></td>
+              </tr>
+              <tr class="class-row" data-period="6" data-paid="true">
+                <td class="checkbox-container"><input type="checkbox" class="pay-trigger"></td>
+                <td><strong>第 6 節</strong></td>
+                <td>14:20~15:00</td>
+                <td><input type="text" placeholder="例：體育"></td>
+                <td><input type="text" placeholder="交代事項..."></td>
+              </tr>
+              <tr class="class-row" data-period="7" data-paid="true">
+                <td class="checkbox-container"><input type="checkbox" class="pay-trigger"></td>
+                <td><strong>第 7 節</strong></td>
+                <td>15:10~15:50</td>
+                <td><input type="text" placeholder="例：美勞"></td>
+                <td><input type="text" placeholder="交代事項..."></td>
+              </tr>
+              
+              <!-- Dismissal -->
+              <tr class="prep-row" data-period="放學" data-paid="false">
+                <td class="checkbox-container"><input type="checkbox"></td>
+                <td><strong>放學</strong></td>
+                <td>15:50~16:00</td>
+                <td><input type="text" placeholder="例：放學導護" value="放學指導"></td>
+                <td><input type="text" placeholder="交代事項..."></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Right: Basic Info & Live Calculation -->
+        <div>
+          <!-- Basic Info Panel -->
+          <div class="panel">
+            <div class="panel-title">
+              <i class="fa-solid fa-circle-info"></i> 基本交接資訊
+            </div>
+            
+            <div class="form-group">
+              <label for="input-date">代課日期</label>
+              <input type="date" id="input-date" required>
+            </div>
+            
+            <div class="form-row">
+              <div>
+                <label for="input-school">學校名稱</label>
+                <input type="text" id="input-school" value="馬鳴國小">
+              </div>
+              <div>
+                <label>鐘點費率</label>
+                <input type="text" value="國小 405 元/節" disabled style="background: #f1f5f9; color: #475569; font-weight: 600;">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <label for="input-absent-teacher">請假教師姓名</label>
+                <input type="text" id="input-absent-teacher" placeholder="請填寫請假老師姓名" required>
+              </div>
+              <div>
+                <!-- 不預設姓名：全校老師共用此表單，預設值會被誤送 -->
+                <label for="input-sub-teacher">代課教師姓名</label>
+                <input type="text" id="input-sub-teacher" placeholder="請填寫代課老師姓名" required>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div>
+                <label for="input-class">代課班級</label>
+                <select id="input-class">
+                  <option value="一甲">一甲 (一年級)</option>
+                  <option value="二甲">二甲 (二年級)</option>
+                  <option value="三甲">三甲 (三年級)</option>
+                  <option value="四甲" selected>四甲 (四年級)</option>
+                  <option value="五甲">五甲 (五年級)</option>
+                  <option value="六甲">六甲 (六年級)</option>
+                </select>
+              </div>
+              <div>
+                <label for="select-leave-type">假別</label>
+                <select id="select-leave-type">
+                  <option value="身心調適假" selected>身心調適假</option>
+                  <option value="事假">事假</option>
+                  <option value="病假">病假</option>
+                  <option value="公假">公假</option>
+                  <option value="公差假">公差假</option>
+                  <option value="婚假">婚假</option>
+                  <option value="喪假">喪假</option>
+                  <option value="產假">產假</option>
+                  <option value="其它">其它</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions Panel -->
+          <div class="panel" style="border-color: #cbd5e1;">
+            <div class="panel-title" style="color: var(--text-color);">
+              <i class="fa-solid fa-paper-plane"></i> 表單操作
+            </div>
+            
+            <div class="stats-grid" style="grid-template-columns: 1fr 1.2fr; margin-bottom: 1rem;">
+              <div class="stat-card">
+                <div class="stat-label">已勾選節數</div>
+                <div class="stat-val" id="preview-periods" style="font-size: 1.25rem;">0 節</div>
+              </div>
+              <div class="stat-card" style="background-color: #eff6ff;">
+                <div class="stat-label">預估總金額</div>
+                <div class="stat-val" id="preview-total-fee" style="font-size: 1.25rem; color: #1e3a8a;">$0</div>
+              </div>
+            </div>
+
+            <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; font-weight: 600; cursor: pointer; background: #f0fdf4; border: 1px dashed #bbf7d0; padding: 0.6rem 0.75rem; border-radius: 8px; color: #166534;">
+              <input type="checkbox" id="chk-mentor-daily">
+              <span><i class="fa-solid fa-user-clock"></i> 整天代理（改領導師費，金額後臺自行計算）</span>
+            </label>
+
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+              <button class="btn btn-primary" id="btn-print-handover">
+                <i class="fa-solid fa-print"></i> 1. 預覽並列印紙本交接單
+              </button>
+              
+              <button class="btn btn-success" id="btn-cloud-submit">
+                <i class="fa-solid fa-cloud-arrow-up"></i> 2. 送出交接單 (存入雲端資料庫)
+              </button>
+              
+              <button class="btn btn-secondary" id="btn-email-backup">
+                <i class="fa-solid fa-copy"></i> 3. 複製交接內容 (貼到信箱/LINE)
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- SETTINGS MODAL -->
+    <div class="modal-overlay" id="settings-modal">
+      <div class="modal">
+        <div class="modal-title">
+          <i class="fa-solid fa-cloud"></i> Google Sheets Web App 設定
+        </div>
+        <div class="form-group">
+          <label for="input-script-url">Google Apps Script 網頁應用程式 URL</label>
+          <input type="text" id="input-script-url" placeholder="https://script.google.com/macros/s/.../exec">
+          <p style="font-size: 0.75rem; color: var(--text-light); margin-top: 0.5rem; line-height: 1.4;">
+            貼上您從 Google 試算表部署取得的 Web App URL。此網址將儲存在您的本地瀏覽器中，用以同步交接紀錄。
+          </p>
+        </div>
+        <div class="modal-buttons">
+          <button class="btn btn-secondary" id="btn-close-settings">取消</button>
+          <button class="btn btn-primary" id="btn-save-settings">儲存設定</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         A4 PRINT LAYOUT (Hidden on screen)
+         ========================================== -->
+    <div id="print-area">
+      <div class="print-title" id="print-title-text">馬鳴國小外聘代課教師原任教師交代事項通知單</div>
+      
+      <table class="print-table">
+        <!-- 以下 print-val 內容一律由列印時的 JS 填入；此處不放範例姓名，避免真實教師姓名留在原始碼中 -->
+        <tr>
+          <td class="print-label">請假教師</td>
+          <td class="print-val" id="print-absent-teacher"></td>
+          <td class="print-label">代課班級</td>
+          <td class="print-val" id="print-class"></td>
+        </tr>
+        <tr>
+          <td class="print-label">假別</td>
+          <td class="print-val" id="print-leave-type"></td>
+          <td class="print-label">代課日期</td>
+          <td class="print-val" id="print-date"></td>
+        </tr>
+        <tr>
+          <td class="print-label">導護工作</td>
+          <td class="print-val" id="print-duty"></td>
+          <td class="print-label">代課教師</td>
+          <td class="print-val" id="print-sub-teacher"></td>
+        </tr>
+      </table>
+
+      <table class="schedule-table">
+        <thead>
+          <tr>
+            <th style="width: 8%;">勾選</th>
+            <th style="width: 10%;">午別</th>
+            <th style="width: 12%;">節次/時間</th>
+            <th style="width: 20%;">原任課教師交代事項<br>(由原任課教師填寫)</th>
+            <th>代課教師執行情形<br>(由代課教師填寫)</th>
+          </tr>
+        </thead>
+        <tbody id="print-schedule-tbody">
+          <!-- Dynamically Populated -->
+        </tbody>
+      </table>
+
+      <div class="print-note">
+        <strong>備註：</strong><br>
+        1. <strong>請假教師</strong>：請假當天只要有課即請填寫此表，並於請假單會教務組時，一併交給教務組。<br>
+        2. 本表應儘量具體敘寫，如國語課本第幾頁到第幾頁。<br>
+        3. 教學用具請事前準備妥或交代清楚。<br>
+        4. <strong>代課教師</strong>：請確實依照馬鳴國小代課教師注意事項之相關規定辦理，代課結束後填寫本表代課教師執行情形一欄後，交回教務組。
+      </div>
+
+      <table class="print-footer-table">
+        <tr>
+          <td><strong>教務組長：</strong></td>
+          <td><strong>教務主任：</strong></td>
+          <td><strong>校長：</strong></td>
+        </tr>
+      </table>
+    </div>
+
+  </div>
+
+  <!-- Javascript Logic for Teacher Page -->
+  <script>
+    // --- 課表 ---
+    // 課表改由 Google 試算表的 Class_Timetables 分頁提供（後端 ?action=timetable）。
+    // 每學年換課表時，直接覆蓋該分頁內容即可，不需要修改本檔。
+    let TIMETABLE_DATABASE = {};
+
+    async function loadTimetable() {
+      const url = localStorage.getItem('gas_web_app_url');
+      if (!url) return false;
+      try {
+        const res = await fetch(`${url}?action=timetable`);
+        if (!res.ok) throw new Error('課表請求失敗');
+        const data = await res.json();
+        if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).length === 0) {
+          throw new Error('課表內容為空或格式不正確');
+        }
+        TIMETABLE_DATABASE = data;
+        return true;
+      } catch (err) {
+        console.error('載入課表失敗:', err);
+        return false;
+      }
+    }
+
+    // 115年費率：國小鐘點費 405元/節（依教育部114.12.31函）
+    const RATE = 405;
+
+    // 預設雲端資料庫網址（2026-07-01 部署）：第一次開啟自動寫入，之後可用右上角齒輪修改
+    const DEFAULT_GAS_URL = '請在此填入您部屬後的_Google_Apps_Script_網頁應用程式URL';;
+    if (!localStorage.getItem('gas_web_app_url')) {
+      localStorage.setItem('gas_web_app_url', DEFAULT_GAS_URL);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Elements
+      const inputDate = document.getElementById('input-date');
+      const inputSchool = document.getElementById('input-school');
+      const inputAbsentTeacher = document.getElementById('input-absent-teacher');
+      const inputSubTeacher = document.getElementById('input-sub-teacher');
+      const inputClass = document.getElementById('input-class');
+      const selectLeaveType = document.getElementById('select-leave-type');
+      
+      const previewPeriods = document.getElementById('preview-periods');
+      const previewTotalFee = document.getElementById('preview-total-fee');
+      const chkMentorDaily = document.getElementById('chk-mentor-daily');
+      
+      const btnPrint = document.getElementById('btn-print-handover');
+      const btnSubmit = document.getElementById('btn-cloud-submit');
+      const btnEmail = document.getElementById('btn-email-backup');
+      
+      // Settings Modal
+      const modal = document.getElementById('settings-modal');
+      const btnOpenSettings = document.getElementById('btn-open-settings');
+      const btnCloseSettings = document.getElementById('btn-close-settings');
+      const btnSaveSettings = document.getElementById('btn-save-settings');
+      const inputScriptUrl = document.getElementById('input-script-url');
+
+      // Set default date
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      inputDate.value = `${yyyy}-${mm}-${dd}`;
+
+      // Load Settings & Saved Values
+      inputScriptUrl.value = localStorage.getItem('gas_web_app_url') || '';
+      inputSchool.value = localStorage.getItem('saved_school') || '馬鳴國小';
+      // 代課教師姓名一律留空：本表單全校共用，代課者每次不同，
+      // 預設值或記住上次的值都會被誤送（代課費會算到別人頭上）。
+      localStorage.removeItem('saved_sub_teacher'); // 清掉舊版留在瀏覽器的名字
+
+      // Live Calc：一般模式算 節數 × 405；整天導師費模式則金額由後臺自算
+      function calculateCurrentFee() {
+        const paidCheckboxes = document.querySelectorAll('.class-row .pay-trigger:checked');
+        const periodsCount = paidCheckboxes.length;
+        const mentorDaily = chkMentorDaily.checked;
+        const totalFee = mentorDaily ? 0 : periodsCount * RATE;
+
+        previewPeriods.textContent = `${periodsCount} 節`;
+        previewTotalFee.textContent = mentorDaily ? '後臺計算' : `$${totalFee.toLocaleString()}`;
+        previewTotalFee.style.fontSize = mentorDaily ? '1rem' : '1.25rem';
+
+        return { periodsCount, rate: RATE, totalFee, mentorDaily };
+      }
+
+      // Auto-fill Timetable
+      function autoFillTimetable() {
+        const dateVal = inputDate.value;
+        const classVal = inputClass.value;
+        const teacherVal = inputAbsentTeacher.value.trim();
+        
+        if (!dateVal || !classVal) return;
+        
+        const classTimetable = TIMETABLE_DATABASE[classVal];
+        if (!classTimetable) return;
+        
+        const dateObj = new Date(dateVal);
+        const dayOfWeek = dateObj.getDay();
+        
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+          // Weekend
+          document.querySelectorAll('#schedule-tbody tr').forEach(row => {
+            row.querySelector('input[type="checkbox"]').checked = false;
+            if (row.getAttribute('data-paid') === 'true') {
+              row.cells[3].querySelector('input').value = '';
+            }
+          });
+          calculateCurrentFee();
+          return;
+        }
+        
+        const dayTimetable = classTimetable[dayOfWeek];
+        
+        document.querySelectorAll('#schedule-tbody tr').forEach(row => {
+          const period = row.getAttribute('data-period');
+          const isPaid = row.getAttribute('data-paid') === 'true';
+          const checkbox = row.querySelector('input[type="checkbox"]');
+          const subjectInput = row.cells[3].querySelector('input');
+          
+          if (isPaid) {
+            const periodData = dayTimetable ? dayTimetable[period] : null;
+            if (periodData) {
+              subjectInput.value = periodData.subject;
+              if (teacherVal && periodData.teacher.trim() === teacherVal) {
+                checkbox.checked = true;
+              } else {
+                checkbox.checked = false;
+              }
+            } else {
+              subjectInput.value = '';
+              checkbox.checked = false;
+            }
+          } else {
+            checkbox.checked = false;
+          }
+        });
+        
+        calculateCurrentFee();
+      }
+
+      // Event Listeners for calculations & autofill
+      inputDate.addEventListener('change', autoFillTimetable);
+      inputClass.addEventListener('change', autoFillTimetable);
+      inputAbsentTeacher.addEventListener('input', autoFillTimetable);
+      
+      document.querySelectorAll('#schedule-tbody input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', calculateCurrentFee);
+      });
+      chkMentorDaily.addEventListener('change', calculateCurrentFee);
+      
+
+
+      // Settings Modal triggers
+      btnOpenSettings.addEventListener('click', () => modal.style.display = 'flex');
+      btnCloseSettings.addEventListener('click', () => modal.style.display = 'none');
+      btnSaveSettings.addEventListener('click', () => {
+        localStorage.setItem('gas_web_app_url', inputScriptUrl.value.trim());
+        modal.style.display = 'none';
+        alert('雲端設定儲存成功！');
+      });
+
+      // Date formatter for print
+      function formatROCDate(dateStr) {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        const rocYear = date.getFullYear() - 1911;
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+        return `${rocYear}年${month}月${day}日 星期(${weekdays[date.getDay()]})`;
+      }
+
+      // Print Logic
+      btnPrint.addEventListener('click', () => {
+        if (!inputAbsentTeacher.value.trim() || !inputSubTeacher.value.trim()) {
+          alert('請輸入請假教師與代課教師姓名！');
+          return;
+        }
+
+        // Save preferences
+        localStorage.setItem('saved_school', inputSchool.value.trim());
+
+        document.getElementById('print-absent-teacher').textContent = inputAbsentTeacher.value.trim();
+        document.getElementById('print-class').textContent = inputClass.value;
+        document.getElementById('print-leave-type').textContent = selectLeaveType.value;
+        document.getElementById('print-date').textContent = formatROCDate(inputDate.value);
+        document.getElementById('print-sub-teacher').textContent = inputSubTeacher.value.trim();
+        
+        const dutyChecks = [];
+        const isChecked = (name) => document.querySelector(`tr[data-period="${name}"] input[type="checkbox"]`).checked;
+        if (isChecked('打掃')) dutyChecks.push('打掃');
+        if (isChecked('午餐')) dutyChecks.push('午餐指導');
+        if (isChecked('午休')) dutyChecks.push('午休指導');
+        if (isChecked('放學')) dutyChecks.push('放學導護');
+        document.getElementById('print-duty').textContent = dutyChecks.length > 0 ? dutyChecks.join('、') : '無';
+
+        const printTbody = document.getElementById('print-schedule-tbody');
+        printTbody.innerHTML = '';
+        
+        const rows = document.querySelectorAll('#schedule-tbody tr');
+        rows.forEach(row => {
+          const period = row.getAttribute('data-period');
+          const isPaid = row.getAttribute('data-paid') === 'true';
+          const chk = row.querySelector('input[type="checkbox"]').checked;
+          const time = row.cells[2].textContent;
+          const subject = row.cells[3].querySelector('input').value;
+          const handover = row.cells[4].querySelector('input').value;
+          
+          let halfDay = ['午休', '5', '6', '7', '放學'].includes(period) ? '下午' : '上午';
+          
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${chk ? '✓' : ''}</td>
+            <td>${halfDay}</td>
+            <td>${isPaid ? '第 ' + period + ' 節' : period}<br>${time}</td>
+            <td class="left-align">${subject}</td>
+            <td class="left-align">${handover}</td>
+            <td></td>
+          `;
+          printTbody.appendChild(tr);
+        });
+
+        window.print();
+      });
+
+      // Submit to Google Sheet
+      btnSubmit.addEventListener('click', async () => {
+        const url = localStorage.getItem('gas_web_app_url');
+        if (!url) {
+          alert('⚠️ 請先點擊右上角設定 (齒輪圖案)，填入 Google Apps Script 網頁應用程式 URL！');
+          modal.style.display = 'flex';
+          return;
+        }
+
+        if (!inputAbsentTeacher.value.trim() || !inputSubTeacher.value.trim()) {
+          alert('請填入請假教師與代課教師姓名！');
+          return;
+        }
+
+        const calc = calculateCurrentFee();
+        if (calc.periodsCount === 0) {
+          alert('請至少勾選一節課再送出！');
+          return;
+        }
+
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 資料上傳中...';
+
+        // Extract periods details
+        const periodsDetail = [];
+        document.querySelectorAll('#schedule-tbody tr').forEach(row => {
+          if (row.querySelector('input[type="checkbox"]').checked) {
+            periodsDetail.push({
+              period: row.getAttribute('data-period'),
+              paid: row.getAttribute('data-paid') === 'true',
+              subject: row.cells[3].querySelector('input').value,
+              handover: row.cells[4].querySelector('input').value
+            });
+          }
+        });
+
+        const payload = {
+          id: Date.now().toString(),
+          date: inputDate.value,
+          school: inputSchool.value.trim(),
+          level: 'elementary',
+          absentTeacher: inputAbsentTeacher.value.trim(),
+          subTeacher: inputSubTeacher.value.trim(),
+          className: inputClass.value,
+          leaveType: selectLeaveType.value,
+          periodsCount: calc.periodsCount,
+          rate: RATE,
+          classFee: calc.totalFee,
+          totalFee: calc.totalFee,
+          payMode: calc.mentorDaily ? 'mentorDaily' : 'perPeriod',
+          payNote: calc.mentorDaily ? '整天代理(導師費)，金額由後臺自行計算' : '',
+          periodsDetail: periodsDetail
+        };
+
+        try {
+          // Send request to Google Apps Script
+          const response = await fetch(url, {
+            method: 'POST',
+            mode: 'no-cors', // standard workaround for GAS redirect CORS issues
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          
+          alert('🎉 資料已成功傳送到 Google 試算表雲端資料庫！');
+          
+          // Clear inputs
+          inputAbsentTeacher.value = '';
+          chkMentorDaily.checked = false;
+          document.querySelectorAll('#schedule-tbody tr').forEach(row => {
+            row.querySelector('input[type="checkbox"]').checked = false;
+            row.cells[4].querySelector('input').value = '';
+          });
+
+          
+          // Save preferences（不記住代課教師姓名：每次代課者不同，記住會被誤送）
+          localStorage.setItem('saved_school', inputSchool.value.trim());
+          
+          autoFillTimetable();
+        } catch (error) {
+          console.error(error);
+          alert('❌ 上傳失敗！請檢查雲端網址是否正確。詳細錯誤：' + error.message);
+        } finally {
+          btnSubmit.disabled = false;
+          btnSubmit.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 2. 送出交接單 (存入雲端資料庫)';
+        }
+      });
+
+      // 複製交接內容到剪貼簿（Mac 沒設定預設信箱 App 時，mailto 常常沒反應，改用複製最穩）
+      btnEmail.addEventListener('click', async () => {
+        if (!inputAbsentTeacher.value.trim() || !inputSubTeacher.value.trim()) {
+          alert('請輸入請假與代課教師姓名！');
+          return;
+        }
+
+        const dateStr = formatROCDate(inputDate.value);
+        const className = inputClass.value;
+        const absent = inputAbsentTeacher.value.trim();
+        const sub = inputSubTeacher.value.trim();
+        const calc = calculateCurrentFee();
+
+        let details = [];
+        document.querySelectorAll('#schedule-tbody tr').forEach(row => {
+          if (row.querySelector('input[type="checkbox"]').checked) {
+            const period = row.getAttribute('data-period');
+            const isPaid = row.getAttribute('data-paid') === 'true';
+            const label = isPaid ? `第 ${period} 節` : period;
+            const subject = row.cells[3].querySelector('input').value;
+            const handover = row.cells[4].querySelector('input').value || '無特定事項';
+            details.push(`• [${label}] ${subject}：${handover}`);
+          }
+        });
+
+        // 金額行：整天導師費模式顯示「後臺自行計算」
+        const feeLine = calc.mentorDaily
+          ? '• 費用計算：整天代理（改領導師費，金額由後臺自行計算）'
+          : `• 預估金額：${calc.periodsCount} 節 × ${RATE} 元 = $${calc.totalFee.toLocaleString()}`;
+
+        const backupText = `[交接單備份] ${dateStr}｜${className}代課交接
+
+【交接明細】
+• 請假教師：${absent}
+• 代課教師：${sub}
+• 假別：${selectLeaveType.value}
+${feeLine}
+
+【詳細課堂交代事項】
+${details.length > 0 ? details.join('\n') : '無特別勾選課堂'}
+
+---
+馬鳴國小代課費與交接單系統`;
+
+        try {
+          await navigator.clipboard.writeText(backupText);
+          alert('✅ 已複製交接內容到剪貼簿！\n可直接貼到 Gmail、LINE 或備忘錄留底。');
+        } catch (err) {
+          // 備援：clipboard API 不可用（例如非 https）時，用舊方法
+          const ta = document.createElement('textarea');
+          ta.value = backupText;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          try {
+            document.execCommand('copy');
+            alert('✅ 已複製交接內容到剪貼簿！\n可直接貼到 Gmail、LINE 或備忘錄留底。');
+          } catch (e) {
+            alert('⚠️ 自動複製失敗，請手動選取以下內容複製：\n\n' + backupText);
+          }
+          document.body.removeChild(ta);
+        }
+      });
+
+      // 先向雲端取得課表，再帶入當日課程。
+      // 課表載入失敗時必須明講：否則老師會看到空白課表卻不知道原因，
+      // 以為「今天沒課」而漏填。
+      (async () => {
+        const ok = await loadTimetable();
+        if (!ok) {
+          alert('⚠️ 課表載入失敗，無法自動帶入課程。\n請檢查網路後重新整理；若持續失敗請聯絡教務處。\n（您仍可手動填寫科目後送出）');
+        }
+        autoFillTimetable();
+      })();
+    });
+  </script>
+</body>
+</html>

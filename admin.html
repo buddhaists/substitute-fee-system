@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>代課費計算與管理後台 (行政端)</title>
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+  
+  <style>
+    .settings-trigger {
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: white;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      transition: all 0.2s;
+    }
+    .settings-trigger:hover {
+      background: rgba(255,255,255,0.3);
+      transform: rotate(30deg);
+    }
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal {
+      background: white;
+      padding: 1.75rem;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    .modal-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #1e3a8a;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .modal-buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      margin-top: 1.25rem;
+    }
+    .refresh-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.8rem;
+      color: var(--success-color);
+      background-color: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    
+    <!-- Top Header -->
+    <header>
+      <div>
+        <h1><i class="fa-solid fa-calculator"></i> 代課費計算與管理後台</h1>
+        <p>月度代課節數統計、費用自動結算、Word 核銷清冊下載</p>
+      </div>
+      
+      <!-- Settings Cog -->
+      <button class="settings-trigger" id="btn-open-settings" title="設定雲端資料庫 URL">
+        <i class="fa-solid fa-gear"></i>
+      </button>
+    </header>
+
+    <!-- MONTHLY SETTLEMENT OVERVIEW -->
+    <section class="panel">
+      <div class="panel-title" style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <span><i class="fa-solid fa-calendar-days"></i> 月度核銷結算面板</span>
+        <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+          <label for="select-month" style="margin-bottom: 0; font-size: 0.95rem;">結算月份：</label>
+          <input type="month" id="select-month" style="width: auto; padding: 0.4rem 0.6rem;">
+          
+          <button class="btn btn-success" id="btn-sync-cloud" style="padding: 0.45rem 1rem;">
+            <i class="fa-solid fa-rotate"></i> 從雲端同步資料
+          </button>
+          
+          <span class="refresh-badge" id="sync-status-badge">
+            <i class="fa-solid fa-cloud-arrow-down"></i> <span id="sync-time-text">本地模式</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- Statistics Summary -->
+      <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+        <div class="stat-card">
+          <div class="stat-label">當月代課總天數/筆數</div>
+          <div class="stat-val" id="month-stat-count">0 筆</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">當月總代課節數</div>
+          <div class="stat-val" id="month-stat-periods">0 節</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">當月總代理導師費</div>
+          <div class="stat-val" id="month-stat-mentor-fee">$0</div>
+        </div>
+        <div class="stat-card" style="background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-color: #bbf7d0;">
+          <div class="stat-label" style="color: #15803d;">當月需撥付總金額</div>
+          <div class="stat-val" id="month-stat-total" style="color: #166534;">$0</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TABLES SECTION -->
+    <div class="grid-layout" style="grid-template-columns: 0.9fr 1.1fr;">
+      
+      <!-- Left: Grouped Summary Table (Who gets paid how much) -->
+      <div class="panel">
+        <div class="panel-title">
+          <i class="fa-solid fa-users-viewfinder"></i> 代課教師月領款彙整表
+        </div>
+        
+        <div class="records-table-container">
+          <table class="records-table">
+            <thead>
+              <tr>
+                <th>代課教師</th>
+                <th style="text-align: center;">總節數</th>
+                <th style="text-align: right;">鐘點費</th>
+                <th style="text-align: right;">導師加給</th>
+                <th style="text-align: right; font-weight: bold; color: var(--primary-color);">應領總額</th>
+              </tr>
+            </thead>
+            <tbody id="summary-tbody">
+              <tr>
+                <td colspan="5" style="text-align: center; color: var(--text-light); padding: 2rem;">當月無任何代課紀錄</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        
+        <div style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
+          <button class="btn btn-primary" id="btn-export-current-month">
+            <i class="fa-solid fa-file-invoice"></i> 1. 下載當月結算 JSON (Word 核銷用)
+          </button>
+          
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-secondary" id="btn-export-all" style="flex: 1;">
+              <i class="fa-solid fa-file-export"></i> 備份所有 JSON
+            </button>
+            <button class="btn btn-danger" id="btn-clear-cache" style="flex: 1;">
+              <i class="fa-solid fa-trash-can"></i> 清除本地快取
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Detailed Monthly Records -->
+      <div class="panel">
+        <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center;">
+          <span><i class="fa-solid fa-list"></i> 當月代課詳細明細</span>
+          <span style="font-size: 0.8rem; color: var(--text-light); font-weight: normal;" id="detail-count-badge">共 0 筆明細</span>
+        </div>
+        
+        <div class="records-table-container" style="max-height: 480px; overflow-y: auto;">
+          <table class="records-table">
+            <thead>
+              <tr>
+                <th>日期</th>
+                <th>班級</th>
+                <th>請假教師</th>
+                <th>代課教師</th>
+                <th style="text-align: center;">節數</th>
+                <th style="text-align: right;">總金額</th>
+              </tr>
+            </thead>
+            <tbody id="detail-tbody">
+              <tr>
+                <td colspan="6" style="text-align: center; color: var(--text-light); padding: 2rem;">無代課明細紀錄</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- WORD GENERATOR GUIDE PANEL -->
+    <section class="panel" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), rgba(131, 56, 236, 0.05)); border-color: rgba(99, 102, 241, 0.2);">
+      <div class="panel-title" style="color: var(--primary-color); border-bottom-color: rgba(99, 102, 241, 0.2);">
+        <i class="fa-solid fa-file-word" style="color: #2b579a;"></i> 月度 Word 印領清冊 (憑證) 生成教學
+      </div>
+      <p style="font-size: 0.95rem; line-height: 1.6; margin-bottom: 0.75rem;">
+        請點擊上方<strong>「1. 下載當月結算 JSON」</strong>按鈕，會下載一個命名為 <code>代課費系統備份_YYYY-MM.json</code> 的檔案。請將該檔案與您本地資料夾下的 <code>generate_voucher.py</code> 放在同一個目錄中。
+      </p>
+      <div style="background-color: #0f172a; color: #38bdf8; padding: 1rem; border-radius: 8px; font-family: monospace; font-size: 0.85rem; overflow-x: auto; margin-bottom: 0.75rem;">
+        # 1. 開啟終端機並切換至資料夾<br>
+        cd "/Users/tsai/Desktop/志益小工具/代課費計算系統"<br><br>
+        # 2. 執行 Python 憑證生成腳本<br>
+        python3 generate_voucher.py
+      </div>
+      <p style="font-size: 0.85rem; color: var(--text-light);">
+        * 執行後，腳本會自動安裝所需套件，並產出一份符合行政核銷規格的 Word 橫式 A4 印領清冊（含表格線條與自動小計）。
+      </p>
+    </section>
+
+    <!-- SETTINGS MODAL -->
+    <div class="modal-overlay" id="settings-modal">
+      <div class="modal">
+        <div class="modal-title">
+          <i class="fa-solid fa-cloud"></i> Google Sheets Web App 設定
+        </div>
+        <div class="form-group">
+          <label for="input-script-url">Google Apps Script 網頁應用程式 URL</label>
+          <input type="text" id="input-script-url" placeholder="https://script.google.com/macros/s/.../exec">
+          <p style="font-size: 0.75rem; color: var(--text-light); margin-top: 0.5rem; line-height: 1.4;">
+            貼上您從 Google 試算表部署取得的 Web App URL。此網址將用來讀取所有老師填報上傳的代課資料。
+          </p>
+        </div>
+        <!-- 讀取金鑰：刻意不寫死在原始碼中，只存在本機瀏覽器，
+             這樣即使本檔案外流，金鑰也不會跟著外流 -->
+        <div class="form-group">
+          <label for="input-secret-key">讀取金鑰</label>
+          <input type="password" id="input-secret-key" placeholder="請輸入讀取金鑰">
+          <p style="font-size: 0.75rem; color: var(--text-light); margin-top: 0.5rem; line-height: 1.4;">
+            後端要求金鑰才會回傳代課費資料，避免任何人拿到網址就能抓走全校薪資紀錄。
+            金鑰只會儲存在<strong>這台電腦的瀏覽器</strong>，不會寫入本檔案，也不會上傳。
+            <br>教師端 (teacher.html) 不需要金鑰，老師照常填報即可。
+          </p>
+        </div>
+        <div class="modal-buttons">
+          <button class="btn btn-secondary" id="btn-close-settings">取消</button>
+          <button class="btn btn-primary" id="btn-save-settings">儲存設定</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Javascript Logic for Admin Page -->
+  <script>
+    // 預設雲端資料庫網址（2026-07-01 部署）：第一次開啟自動寫入，之後可用右上角齒輪修改
+    const DEFAULT_GAS_URL = '請在此填入您部屬後的_Google_Apps_Script_網頁應用程式URL';;
+    if (!localStorage.getItem('gas_web_app_url')) {
+      localStorage.setItem('gas_web_app_url', DEFAULT_GAS_URL);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Elements
+      const selectMonth = document.getElementById('select-month');
+      const btnSync = document.getElementById('btn-sync-cloud');
+      const syncStatusText = document.getElementById('sync-time-text');
+      
+      const monthStatCount = document.getElementById('month-stat-count');
+      const monthStatPeriods = document.getElementById('month-stat-periods');
+      const monthStatMentorFee = document.getElementById('month-stat-mentor-fee');
+      const monthStatTotal = document.getElementById('month-stat-total');
+      
+      const summaryTbody = document.getElementById('summary-tbody');
+      const detailTbody = document.getElementById('detail-tbody');
+      const detailCountBadge = document.getElementById('detail-count-badge');
+      
+      const btnExportMonth = document.getElementById('btn-export-current-month');
+      const btnExportAll = document.getElementById('btn-export-all');
+      const btnClearCache = document.getElementById('btn-clear-cache');
+      
+      // Settings Modal
+      const modal = document.getElementById('settings-modal');
+      const btnOpenSettings = document.getElementById('btn-open-settings');
+      const btnCloseSettings = document.getElementById('btn-close-settings');
+      const btnSaveSettings = document.getElementById('btn-save-settings');
+      const inputScriptUrl = document.getElementById('input-script-url');
+      const inputSecretKey = document.getElementById('input-secret-key');
+
+      // Init Month selector
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      selectMonth.value = `${yyyy}-${mm}`;
+
+      // State
+      // 後端已改為按月分表，doGet 一次只回傳單一月份，因此快取也只對應一個月份。
+      // 快取月份與目前選擇的月份不符時直接捨棄，避免顯示上次同步的別月資料。
+      let allRecords = localStorage.getItem('admin_records_cache_month') === selectMonth.value
+        ? (JSON.parse(localStorage.getItem('admin_records_cache')) || [])
+        : [];
+
+      // Load Settings
+      inputScriptUrl.value = localStorage.getItem('gas_web_app_url') || '';
+      inputSecretKey.value = localStorage.getItem('gas_secret_key') || '';
+      const lastSync = localStorage.getItem('gas_last_sync_time');
+      if (lastSync) {
+        syncStatusText.textContent = `上次更新：${lastSync}`;
+      }
+
+      // Render Dashboard
+      renderDashboard();
+
+      // Settings modal trigger
+      btnOpenSettings.addEventListener('click', () => modal.style.display = 'flex');
+      btnCloseSettings.addEventListener('click', () => modal.style.display = 'none');
+      btnSaveSettings.addEventListener('click', () => {
+        localStorage.setItem('gas_web_app_url', inputScriptUrl.value.trim());
+        localStorage.setItem('gas_secret_key', inputSecretKey.value.trim());
+        modal.style.display = 'none';
+        alert('雲端設定儲存成功！');
+      });
+
+      // Fetch cloud data
+      async function syncCloudData(silent = false) {
+        const url = localStorage.getItem('gas_web_app_url');
+        if (!url) {
+          alert('⚠️ 請點擊右上角設定 (齒輪圖案)，填入 Google Apps Script 網頁應用程式 URL！');
+          modal.style.display = 'flex';
+          return;
+        }
+
+        const targetMonth = selectMonth.value;
+        if (!targetMonth) {
+          alert('請先選擇結算月份！');
+          return;
+        }
+
+        btnSync.disabled = true;
+        btnSync.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 資料同步中...';
+
+        try {
+          // 後端按月分表，必須指定月份；未帶 month 參數時後端只會回傳「當月」，
+          // 導致選擇其他月份時抓不到資料。
+          // 讀取需帶金鑰，否則後端會回傳未授權。
+          const key = localStorage.getItem('gas_secret_key') || '';
+          const response = await fetch(
+            `${url}?month=${encodeURIComponent(targetMonth)}&key=${encodeURIComponent(key)}`
+          );
+          if (!response.ok) throw new Error('雲端請求回應錯誤');
+          const data = await response.json();
+
+          // 金鑰不對時後端回傳的是物件而非陣列，需明確提示，否則會被誤判為格式錯誤
+          if (data && data.status === 'error') {
+            throw new Error(data.message || '後端回傳錯誤');
+          }
+
+          if (Array.isArray(data)) {
+            allRecords = data;
+            localStorage.setItem('admin_records_cache', JSON.stringify(allRecords));
+            localStorage.setItem('admin_records_cache_month', targetMonth);
+
+            // Record last sync time
+            const now = new Date();
+            const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+            localStorage.setItem('gas_last_sync_time', timeStr);
+            syncStatusText.textContent = `同步時間：${timeStr}`;
+            
+            renderDashboard();
+            if (!silent) alert(`🎉 ${targetMonth} 資料同步成功！共拉取了 ${data.length} 筆完整代課紀錄。`);
+          } else {
+            throw new Error('API 回傳的格式不正確，應為陣列。');
+          }
+        } catch (error) {
+          console.error(error);
+          alert('❌ 同步失敗！請確認您的 Google Script 網址是否正確。詳細錯誤：' + error.message);
+        } finally {
+          btnSync.disabled = false;
+          btnSync.innerHTML = '<i class="fa-solid fa-rotate"></i> 從雲端同步資料';
+        }
+      }
+
+      // 注意：不可寫成 addEventListener('click', syncCloudData)，
+      // 否則 click 事件物件會被當成 silent 參數傳入（永遠為真），手動同步就不會顯示成功提示。
+      btnSync.addEventListener('click', () => syncCloudData());
+
+      // Render Main calculations
+      function renderDashboard() {
+        const targetMonth = selectMonth.value; // YYYY-MM
+        if (!targetMonth) return;
+
+        // Filter by month
+        const filtered = allRecords.filter(rec => rec.date.startsWith(targetMonth));
+
+        // 1. Calculations
+        let totalRecords = filtered.length;
+        let totalPeriods = 0;
+        let totalMentorFee = 0;
+        let grandTotal = 0;
+
+        filtered.forEach(rec => {
+          totalPeriods += rec.periodsCount;
+          totalMentorFee += rec.mentorFee;
+          grandTotal += rec.totalFee;
+        });
+
+        // Update cards
+        monthStatCount.textContent = `${totalRecords} 筆`;
+        monthStatPeriods.textContent = `${totalPeriods} 節`;
+        monthStatMentorFee.textContent = `$${totalMentorFee.toLocaleString()}`;
+        monthStatTotal.textContent = `$${grandTotal.toLocaleString()}`;
+
+        // 2. Grouped Summary Table
+        summaryTbody.innerHTML = '';
+        const summaryMap = {};
+        
+        filtered.forEach(rec => {
+          const name = rec.subTeacher;
+          if (!summaryMap[name]) {
+            summaryMap[name] = { periods: 0, classFee: 0, mentorFee: 0, total: 0 };
+          }
+          summaryMap[name].periods += rec.periodsCount;
+          summaryMap[name].classFee += rec.classFee;
+          summaryMap[name].mentorFee += rec.mentorFee;
+          summaryMap[name].total += rec.totalFee;
+        });
+
+        const summaryKeys = Object.keys(summaryMap);
+        if (summaryKeys.length === 0) {
+          summaryTbody.innerHTML = `
+            <tr>
+              <td colspan="5" style="text-align: center; color: var(--text-light); padding: 2rem;">當月無任何領款紀錄</td>
+            </tr>
+          `;
+        } else {
+          summaryKeys.forEach(name => {
+            const d = summaryMap[name];
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td><strong>${name}</strong></td>
+              <td style="text-align: center;">${d.periods} 節</td>
+              <td style="text-align: right;">$${d.classFee.toLocaleString()}</td>
+              <td style="text-align: right;">$${d.mentorFee.toLocaleString()}</td>
+              <td style="text-align: right; font-weight: 800; color: #166534;">$${d.total.toLocaleString()}</td>
+            `;
+            summaryTbody.appendChild(tr);
+          });
+        }
+
+        // 3. Detailed Monthly Records Table
+        detailTbody.innerHTML = '';
+        detailCountBadge.textContent = `共 ${totalRecords} 筆明細`;
+
+        if (filtered.length === 0) {
+          detailTbody.innerHTML = `
+            <tr>
+              <td colspan="6" style="text-align: center; color: var(--text-light); padding: 2rem;">無代課明細紀錄</td>
+            </tr>
+          `;
+        } else {
+          // Sort by date ascending
+          filtered.sort((a, b) => new Date(a.date) - new Date(b.date));
+          filtered.forEach(rec => {
+            const tr = document.createElement('tr');
+            const dObj = new Date(rec.date);
+            const simpleDate = `${dObj.getMonth()+1}/${dObj.getDate()}`;
+            
+            tr.innerHTML = `
+              <td><strong>${rec.date}</strong> (${simpleDate})</td>
+              <td><span class="badge badge-primary">${rec.className}</span></td>
+              <td>${rec.absentTeacher}</td>
+              <td><strong>${rec.subTeacher}</strong></td>
+              <td style="text-align: center;">${rec.periodsCount} 節</td>
+              <td style="text-align: right; font-weight: bold; color: #1e3a8a;">$${rec.totalFee.toLocaleString()}</td>
+            `;
+            detailTbody.appendChild(tr);
+          });
+        }
+      }
+
+      // 後端按月分表，換月份必須重新抓資料（快取只存單一月份，不能只重繪）
+      selectMonth.addEventListener('change', () => {
+        allRecords = [];
+        renderDashboard();
+        if (localStorage.getItem('gas_web_app_url')) syncCloudData(true);
+      });
+
+      // Export Current Month JSON (Used by python-docx)
+      btnExportMonth.addEventListener('click', () => {
+        const targetMonth = selectMonth.value;
+        const filtered = allRecords.filter(rec => rec.date.startsWith(targetMonth));
+        if (filtered.length === 0) {
+          alert('當月無資料可匯出！');
+          return;
+        }
+
+        // Download JSON
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(filtered, null, 2));
+        const dlAnchor = document.createElement('a');
+        dlAnchor.setAttribute("href", dataStr);
+        dlAnchor.setAttribute("download", `代課費系統備份_${targetMonth}.json`);
+        document.body.appendChild(dlAnchor);
+        dlAnchor.click();
+        dlAnchor.remove();
+      });
+
+      // Export All Records JSON
+      // 後端按月分表，allRecords 只有目前同步的單一月份，不能拿來當「全部備份」，
+      // 必須另外向後端要 ?month=all（會掃描所有 YYYY-MM_總表 分頁彙整回傳）。
+      btnExportAll.addEventListener('click', async () => {
+        const url = localStorage.getItem('gas_web_app_url');
+        if (!url) {
+          alert('⚠️ 請點擊右上角設定 (齒輪圖案)，填入 Google Apps Script 網頁應用程式 URL！');
+          modal.style.display = 'flex';
+          return;
+        }
+
+        const originalHtml = btnExportAll.innerHTML;
+        btnExportAll.disabled = true;
+        btnExportAll.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 讀取所有月份...';
+
+        try {
+          const key = localStorage.getItem('gas_secret_key') || '';
+          const response = await fetch(`${url}?month=all&key=${encodeURIComponent(key)}`);
+          if (!response.ok) throw new Error('雲端請求回應錯誤');
+          const data = await response.json();
+          if (data && data.status === 'error') throw new Error(data.message || '後端回傳錯誤');
+          if (!Array.isArray(data)) throw new Error('API 回傳的格式不正確，應為陣列。');
+          if (data.length === 0) {
+            alert('雲端資料庫目前沒有任何代課紀錄，無資料可備份！');
+            return;
+          }
+
+          const months = [...new Set(data.map(rec => rec.date.slice(0, 7)))].sort();
+          const stamp = new Date().toISOString().slice(0, 10);
+          const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+          const dlAnchor = document.createElement('a');
+          dlAnchor.setAttribute("href", dataStr);
+          dlAnchor.setAttribute("download", `代課費系統資料庫全部備份_${stamp}.json`);
+          document.body.appendChild(dlAnchor);
+          dlAnchor.click();
+          dlAnchor.remove();
+
+          alert(`✅ 已備份 ${data.length} 筆代課紀錄\n涵蓋月份：${months.join('、')}`);
+        } catch (error) {
+          console.error(error);
+          alert('❌ 備份失敗！詳細錯誤：' + error.message);
+        } finally {
+          btnExportAll.disabled = false;
+          btnExportAll.innerHTML = originalHtml;
+        }
+      });
+
+      // Clear cache
+      btnClearCache.addEventListener('click', () => {
+        if (confirm('確定要清除本地端快取的代課紀錄嗎？\n(這只會清除這台電腦上的暫存，不會刪除雲端 Google 試算表上的資料。重新同步即可再次載入)')) {
+          allRecords = [];
+          localStorage.removeItem('admin_records_cache');
+          localStorage.removeItem('admin_records_cache_month');
+          renderDashboard();
+          alert('已清除本地快取！');
+        }
+      });
+
+    });
+  </script>
+</body>
+</html>
