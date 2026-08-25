@@ -276,13 +276,17 @@ footer {
 </head>
 <body>
   <? var appUrl = (typeof scriptUrl !== 'undefined' && scriptUrl) ? scriptUrl : (typeof getScriptUrl === 'function' ? getScriptUrl() : ''); ?>
+  <? var settingsData = (typeof systemSettings !== 'undefined' && systemSettings) ? JSON.stringify(systemSettings) : '{}'; ?>
+  <script>
+    var SERVER_SYSTEM_SETTINGS = <?!= settingsData ?>;
+  </script>
   
   <div class="portal-container">
     
     <!-- 全域頂部導航選單 (Top Navigation Menu) -->
     <nav class="top-navbar">
       <a href="<?= appUrl ?>" class="nav-brand" target="_top">
-        <i class="fa-solid fa-graduation-cap"></i> 馬鳴國小代課系統
+        <i class="fa-solid fa-graduation-cap"></i> <span id="nav-school-name">代課系統</span>
       </a>
       <div class="nav-menu">
         <a href="<?= appUrl ?>" class="nav-item active" target="_top">
@@ -299,7 +303,7 @@ footer {
 
     <header class="portal-header">
       <h1><i class="fa-solid fa-graduation-cap"></i> 代課費計算與管理系統</h1>
-      <p>馬鳴國小專屬 ─ 請選擇您要進入的模組</p>
+      <p id="portal-sub-text">請選擇您要進入的模組</p>
     </header>
     
     <div class="grid-portal">
@@ -322,7 +326,7 @@ footer {
           <i class="fa-solid fa-calculator"></i>
         </div>
         <h2>行政核銷端</h2>
-        <p>供行政與業務承辦同仁月底核銷結算使用。可即時同步雲端資料、按月彙整款項並下載核銷備份與清冊。</p>
+        <p>供行政與業務承辦同仁月底核銷結算使用。包含全域參數設定、全校課表批次匯入與月度印領清冊匯出。</p>
         <div class="card-footer-badge">
           <span>進入行政核銷</span> <i class="fa-solid fa-arrow-right"></i>
         </div>
@@ -331,9 +335,26 @@ footer {
     </div>
     
     <footer>
-      <p><i class="fa-solid fa-cloud-check"></i> Google Apps Script 雲端原生版 ─ 馬鳴國小</p>
+      <p><i class="fa-solid fa-cloud-check"></i> Google Apps Script 雲端原生版 ─ <span id="footer-school-name">國小代課系統</span></p>
     </footer>
     
   </div>
+
+  <script>
+    const isGasEnv = typeof google !== 'undefined' && google.script && google.script.run;
+    function applySchoolName(settings) {
+      if (settings && settings.school_name) {
+        document.getElementById('nav-school-name').textContent = settings.school_name;
+        document.getElementById('portal-sub-text').textContent = `${settings.school_name} 專屬 ─ 請選擇您要進入的模組`;
+        document.getElementById('footer-school-name').textContent = settings.school_name;
+      }
+    }
+    if (typeof SERVER_SYSTEM_SETTINGS !== 'undefined' && SERVER_SYSTEM_SETTINGS) {
+      applySchoolName(SERVER_SYSTEM_SETTINGS);
+    }
+    if (isGasEnv) {
+      google.script.run.withSuccessHandler(applySchoolName).getSystemSettingsData();
+    }
+  </script>
 </body>
 </html>

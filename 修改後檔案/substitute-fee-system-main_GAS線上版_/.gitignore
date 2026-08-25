@@ -1,0 +1,14 @@
+# Temporary & lock files
+~$*
+*.tmp
+*.temp
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store

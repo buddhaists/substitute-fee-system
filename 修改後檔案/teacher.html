@@ -589,15 +589,17 @@ input[type="checkbox"] {
 <body>
   <? var appUrl = (typeof scriptUrl !== 'undefined' && scriptUrl) ? scriptUrl : (typeof getScriptUrl === 'function' ? getScriptUrl() : ''); ?>
   <? var serverData = (typeof serverTimetable !== 'undefined' && serverTimetable) ? JSON.stringify(serverTimetable) : '{}'; ?>
+  <? var settingsData = (typeof systemSettings !== 'undefined' && systemSettings) ? JSON.stringify(systemSettings) : '{}'; ?>
   <script>
     var SERVER_TIMETABLE = <?!= serverData ?>;
+    var SERVER_SYSTEM_SETTINGS = <?!= settingsData ?>;
   </script>
   <div class="container">
     
     <!-- 全域頂部導航選單 (Top Navigation Menu) -->
     <nav class="top-navbar">
       <a href="<?= appUrl ?>" class="nav-brand" target="_top">
-        <i class="fa-solid fa-graduation-cap"></i> 馬鳴國小代課系統
+        <i class="fa-solid fa-graduation-cap"></i> <span id="nav-school-name">代課系統</span>
       </a>
       <div class="nav-menu">
         <a href="<?= appUrl ?>" class="nav-item" target="_top">
@@ -616,7 +618,7 @@ input[type="checkbox"] {
     <header>
       <div>
         <h1>
-          <i class="fa-solid fa-file-signature"></i> 馬鳴國小代課與交接單填報
+          <i class="fa-solid fa-file-signature"></i> <span id="header-school-name">代課與交接單填報</span>
           <span class="gas-env-badge" id="env-badge"><i class="fa-solid fa-bolt"></i> GAS 雲端原生</span>
         </h1>
         <p>請在此填寫您的假別與課務交接事項，填妥後可列印紙本並直接送出存檔</p>
@@ -996,8 +998,9 @@ input[type="checkbox"] {
       }
     };
 
-    // 115年費率：國小鐘點費 405元/節（依教育部114.12.31函）
-    const RATE = 405;
+    // 預設費率與設定
+    let CURRENT_RATE = 405;
+    let CURRENT_SCHOOL_NAME = '馬鳴國小';
 
     // 判斷是否運行於 GAS 內部環境
     const isGasEnv = typeof google !== 'undefined' && google.script && google.script.run;
@@ -1006,6 +1009,7 @@ input[type="checkbox"] {
       // Elements
       const inputDate = document.getElementById('input-date');
       const inputSchool = document.getElementById('input-school');
+      const displayRateBadge = document.getElementById('display-rate-badge');
       const selectAbsentTeacher = document.getElementById('select-absent-teacher');
       const inputAbsentTeacherCustom = document.getElementById('input-absent-teacher-custom');
       const inputSubTeacher = document.getElementById('input-sub-teacher');
@@ -1036,6 +1040,41 @@ input[type="checkbox"] {
         envBadge.innerHTML = '<i class="fa-solid fa-globe"></i> 獨立網頁模式';
       }
 
+      // 套用系統全域設定
+      function applySystemSettings(settings) {
+        if (!settings) return;
+        if (settings.school_name) {
+          CURRENT_SCHOOL_NAME = settings.school_name;
+          const navEl = document.getElementById('nav-school-name');
+          if (navEl) navEl.textContent = settings.school_name;
+          const headerEl = document.getElementById('header-school-name');
+          if (headerEl) headerEl.textContent = `${settings.school_name} 代課與交接單填報`;
+          inputSchool.value = settings.school_name;
+          const printTitleEl = document.getElementById('print-title-text');
+          if (printTitleEl) printTitleEl.textContent = `${settings.school_name} 外聘代課教師原任教師交代事項通知單`;
+        }
+        if (settings.rate_per_period) {
+          CURRENT_RATE = Number(settings.rate_per_period) || 405;
+          const levelText = settings.school_level === 'junior' ? '國中' : (settings.school_level === 'senior' ? '高中' : '國小');
+          if (displayRateBadge) displayRateBadge.value = `${levelText} ${CURRENT_RATE} 元/節`;
+        }
+        calculateCurrentFee();
+      }
+
+      // 載入預先注入的系統設定
+      if (typeof SERVER_SYSTEM_SETTINGS !== 'undefined' && SERVER_SYSTEM_SETTINGS && Object.keys(SERVER_SYSTEM_SETTINGS).length > 0) {
+        applySystemSettings(SERVER_SYSTEM_SETTINGS);
+      }
+
+      // 非同步自 GAS 獲取最新設定
+      if (isGasEnv) {
+        google.script.run
+          .withSuccessHandler((settings) => {
+            if (settings) applySystemSettings(settings);
+          })
+          .getSystemSettingsData();
+      }
+
       // Set default date
       const today = new Date();
       const yyyy = today.getFullYear();
@@ -1046,7 +1085,9 @@ input[type="checkbox"] {
       // Load Settings & Saved Values
       inputScriptUrl.value = localStorage.getItem('gas_web_app_url') || '';
       inputSubTeacher.value = localStorage.getItem('saved_sub_teacher') || '蔡志益';
-      inputSchool.value = localStorage.getItem('saved_school') || '馬鳴國小';
+      if (!inputSchool.value) {
+        inputSchool.value = localStorage.getItem('saved_school') || CURRENT_SCHOOL_NAME;
+      }
 
       // 取得目前請假教師姓名
       function getAbsentTeacherValue() {
@@ -1229,13 +1270,13 @@ input[type="checkbox"] {
         const paidCheckboxes = document.querySelectorAll('.class-row .pay-trigger:checked');
         const periodsCount = paidCheckboxes.length;
         const mentorDaily = chkMentorDaily.checked;
-        const totalFee = mentorDaily ? 0 : periodsCount * RATE;
+        const totalFee = mentorDaily ? 0 : periodsCount * CURRENT_RATE;
 
         previewPeriods.textContent = `${periodsCount} 節`;
         previewTotalFee.textContent = mentorDaily ? '後臺計算' : `$${totalFee.toLocaleString()}`;
         previewTotalFee.style.fontSize = mentorDaily ? '1rem' : '1.25rem';
 
-        return { periodsCount, rate: RATE, totalFee, mentorDaily };
+        return { periodsCount, rate: CURRENT_RATE, totalFee, mentorDaily };
       }
 
       // Auto-fill Timetable
@@ -1458,7 +1499,7 @@ input[type="checkbox"] {
           className: inputClass.value,
           leaveType: selectLeaveType.value,
           periodsCount: calc.periodsCount,
-          rate: RATE,
+          rate: CURRENT_RATE,
           classFee: calc.totalFee,
           totalFee: calc.totalFee,
           payMode: calc.mentorDaily ? 'mentorDaily' : 'perPeriod',

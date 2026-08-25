@@ -20,6 +20,19 @@ var SECRET_KEY = '請在此填入自訂的隨機安全金鑰密碼';
 // 課表分頁名稱（每學年更新課表時，直接覆蓋這個分頁的內容即可，不必改程式碼）
 var TIMETABLE_SHEET = 'Class_Timetables';
 
+// 系統設定分頁名稱（集中管理全校一致性設定項目）
+var SETTINGS_SHEET = 'System_Settings';
+var SETTINGS_HEADERS = ["項目名稱(Name)", "設定代碼(Key)", "設定值(Value)", "說明(Description)"];
+
+var DEFAULT_SETTINGS = [
+  { name: "學校名稱", key: "school_name", value: "馬鳴國小", desc: "系統全銜與印領清冊抬頭" },
+  { name: "教育階段", key: "school_level", value: "elementary", desc: "elementary(國小) / junior(國中) / senior(高中)" },
+  { name: "單節鐘點費率", key: "rate_per_period", value: "405", desc: "國小 405 元/節 (依教育部函文)" },
+  { name: "學年學期", key: "academic_year_term", value: "114-1", desc: "當前運行的學年與學期" },
+  { name: "代理導師預設日薪", key: "mentor_daily_rate", value: "1528", desc: "整天代導師之日薪預設標準" },
+  { name: "非計費作息項目", key: "duty_items", value: "早修,打掃,午餐,午休,放學", desc: "交接單上之作息指導項目(逗號分隔)" }
+];
+
 var SUMMARY_HEADERS = [
   "申請編號(ID)", "填報時間(Timestamp)", "代課日期(Date)", "學校名稱(School)",
   "教育階段(Level)", "請假教師(AbsentTeacher)", "代課教師(SubTeacher)", "班級(ClassName)",
@@ -121,6 +134,11 @@ function doGet(e) {
       return getCorsResponse(JSON.stringify(buildTimetable(ss)), 'json');
     }
 
+    if (params.action === "settings") {
+      var ss = getActiveSs();
+      return getCorsResponse(JSON.stringify(getSystemSettings(ss)), 'json');
+    }
+
     if (params.month || params.action === "confirm") {
       // 驗證金鑰
       if (params.key !== SECRET_KEY) {
@@ -163,10 +181,16 @@ function doGet(e) {
     template.page = page;
     template.scriptUrl = getScriptUrl();
 
+    var activeSs = null;
+    try {
+      activeSs = SpreadsheetApp.getActiveSpreadsheet();
+    } catch (e) {}
+
+    template.systemSettings = activeSs ? getSystemSettings(activeSs) : {};
+
     if (page === 'teacher') {
       try {
-        var ss = SpreadsheetApp.getActiveSpreadsheet();
-        template.serverTimetable = ss ? buildTimetable(ss) : {};
+        template.serverTimetable = activeSs ? buildTimetable(activeSs) : {};
       } catch (e) {
         template.serverTimetable = {};
       }
@@ -277,6 +301,164 @@ function saveHandoverRecord(data) {
 function getTimetableData() {
   var ss = getActiveSs();
   return buildTimetable(ss);
+}
+
+/**
+ * 取得全域系統設定（伺服端直連）
+ */
+function getSystemSettingsData() {
+  var ss = getActiveSs();
+  return getSystemSettings(ss);
+}
+
+/**
+ * 儲存全域系統設定（需驗證金鑰，伺服端直連）
+ */
+function saveSystemSettingsData(settingsObj, key) {
+  return saveSystemSettings(settingsObj, key);
+}
+
+/**
+ * 批次匯入課表資料（需驗證金鑰，伺服端直連）
+ */
+function importTimetableData(rows, mode, key) {
+  if (key !== SECRET_KEY) {
+    return { status: "error", message: "未授權：安全金鑰錯誤或未填寫。" };
+  }
+  if (!rows || !Array.isArray(rows) || rows.length === 0) {
+    return { status: "error", message: "匯入資料為空，請確認格式！" };
+  }
+  try {
+    var ss = getActiveSs();
+    var sheet = ss.getSheetByName(TIMETABLE_SHEET);
+    var TIMETABLE_HEADERS = ["班級(ClassName)", "星期(DayOfWeek)", "節次(Period)", "科目(Subject)", "授課教師(Teacher)"];
+    
+    if (!sheet) {
+      sheet = ss.insertSheet(TIMETABLE_SHEET);
+      sheet.appendRow(TIMETABLE_HEADERS);
+      sheet.setFrozenRows(1);
+    }
+
+    if (mode === 'overwrite') {
+      var lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        sheet.getRange(2, 1, lastRow - 1, 5).clearContent();
+      }
+    }
+
+    var dataToWrite = [];
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var cls = String(r[0] !== null && r[0] !== undefined ? r[0] : '').trim();
+      var day = parseInt(r[1], 10);
+      var period = parseInt(r[2], 10);
+      var subject = String(r[3] || '').trim();
+      var teacher = String(r[4] || '').trim();
+
+      if (!cls || isNaN(day) || isNaN(period)) continue;
+      dataToWrite.push([cls, day, period, subject, teacher]);
+    }
+
+    if (dataToWrite.length === 0) {
+      return { status: "error", message: "沒有合法的課表資料（請檢查是否有包含班級、星期1~5、節次1~7）！" };
+    }
+
+    var startRow = (mode === 'overwrite') ? 2 : (sheet.getLastRow() + 1);
+    sheet.getRange(startRow, 1, dataToWrite.length, 5).setValues(dataToWrite);
+
+    return {
+      status: "success",
+      count: dataToWrite.length,
+      message: "成功寫入 " + dataToWrite.length + " 筆課表紀錄！",
+      timetable: buildTimetable(ss)
+    };
+  } catch (err) {
+    return { status: "error", message: "匯入發生錯誤：" + err.toString() };
+  }
+}
+
+/**
+ * 讀取系統設定底層函式
+ */
+function getSystemSettings(ss) {
+  if (!ss) return {};
+  var sheet = ss.getSheetByName(SETTINGS_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(SETTINGS_SHEET);
+    sheet.appendRow(SETTINGS_HEADERS);
+    for (var i = 0; i < DEFAULT_SETTINGS.length; i++) {
+      var item = DEFAULT_SETTINGS[i];
+      sheet.appendRow([item.name, item.key, item.value, item.desc]);
+    }
+    sheet.setFrozenRows(1);
+  }
+
+  var lastRow = sheet.getLastRow();
+  var settings = {};
+  for (var k = 0; k < DEFAULT_SETTINGS.length; k++) {
+    settings[DEFAULT_SETTINGS[k].key] = DEFAULT_SETTINGS[k].value;
+  }
+
+  if (lastRow > 1) {
+    var values = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
+    for (var j = 0; j < values.length; j++) {
+      var kName = String(values[j][1] || '').trim();
+      var val = values[j][2];
+      if (kName) {
+        settings[kName] = (val !== null && val !== undefined) ? String(val).trim() : '';
+      }
+    }
+  }
+  return settings;
+}
+
+/**
+ * 儲存系統設定底層函式
+ */
+function saveSystemSettings(settingsObj, key) {
+  if (key !== SECRET_KEY) {
+    return { status: "error", message: "未授權：安全金鑰錯誤或未填寫。" };
+  }
+  try {
+    var ss = getActiveSs();
+    var sheet = ss.getSheetByName(SETTINGS_SHEET);
+    if (!sheet) {
+      getSystemSettings(ss);
+      sheet = ss.getSheetByName(SETTINGS_SHEET);
+    }
+    
+    var lastRow = sheet.getLastRow();
+    var existingKeys = {};
+    if (lastRow > 1) {
+      var values = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
+      for (var i = 0; i < values.length; i++) {
+        var kName = String(values[i][1] || '').trim();
+        if (kName) existingKeys[kName] = i + 2;
+      }
+    }
+
+    for (var skey in settingsObj) {
+      var sval = String(settingsObj[skey] || '').trim();
+      if (existingKeys[skey]) {
+        sheet.getRange(existingKeys[skey], 3).setValue(sval);
+      } else {
+        var sname = skey;
+        var sdesc = "";
+        for (var d = 0; d < DEFAULT_SETTINGS.length; d++) {
+          if (DEFAULT_SETTINGS[d].key === skey) {
+            sname = DEFAULT_SETTINGS[d].name;
+            sdesc = DEFAULT_SETTINGS[d].desc;
+            break;
+          }
+        }
+        sheet.appendRow([sname, skey, sval, sdesc]);
+      }
+    }
+
+    return { status: "success", message: "全域系統設定已成功儲存至 Google 試算表！", settings: getSystemSettings(ss) };
+  } catch (err) {
+    return { status: "error", message: "儲存失敗：" + err.toString() };
+  }
 }
 
 /**
