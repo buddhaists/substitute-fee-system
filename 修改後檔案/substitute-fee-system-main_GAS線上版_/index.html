@@ -344,6 +344,7 @@ footer {
     const isGasEnv = typeof google !== 'undefined' && google.script && google.script.run;
     function applySchoolName(settings) {
       if (settings && settings.school_name) {
+        document.title = `${settings.school_name} - 代課費計算與管理系統`;
         document.getElementById('nav-school-name').textContent = settings.school_name;
         document.getElementById('portal-sub-text').textContent = `${settings.school_name} 專屬 ─ 請選擇您要進入的模組`;
         document.getElementById('footer-school-name').textContent = settings.school_name;

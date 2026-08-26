@@ -113,12 +113,13 @@ function getScriptUrl() {
 }
 
 /**
- * 輔助：依頁面名稱取得標題
+ * 輔助：依頁面名稱與學校名稱動態取得分頁標題
  */
-function getTitleForPage(page) {
-  if (page === 'admin') return '代課費計算與管理後台 (行政端)';
-  if (page === 'teacher') return '馬鳴國小代課與交接單填報 (教師端)';
-  return '代課費計算與管理系統 - 入口門戶';
+function getTitleForPage(page, schoolName) {
+  var school = (schoolName && String(schoolName).trim()) ? String(schoolName).trim() : '代課系統';
+  if (page === 'admin') return school + ' - 代課費計算與管理後台 (行政端)';
+  if (page === 'teacher') return school + ' - 代課與交接單填報 (教師端)';
+  return school + ' - 代課費計算與管理系統';
 }
 
 /**
@@ -188,7 +189,9 @@ function doGet(e) {
       activeSs = SpreadsheetApp.getActiveSpreadsheet();
     } catch (e) {}
 
-    template.systemSettings = activeSs ? getSystemSettings(activeSs) : {};
+    var currentSettings = activeSs ? getSystemSettings(activeSs) : {};
+    template.systemSettings = currentSettings;
+    var currentSchool = (currentSettings && currentSettings.school_name) ? currentSettings.school_name : '代課系統';
 
     if (page === 'teacher') {
       try {
@@ -199,7 +202,7 @@ function doGet(e) {
     }
 
     return template.evaluate()
-      .setTitle(getTitleForPage(page))
+      .setTitle(getTitleForPage(page, currentSchool))
       .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 

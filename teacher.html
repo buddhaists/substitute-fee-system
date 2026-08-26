@@ -1045,6 +1045,7 @@ input[type="checkbox"] {
         if (!settings) return;
         if (settings.school_name) {
           CURRENT_SCHOOL_NAME = settings.school_name;
+          document.title = `${settings.school_name} - 代課與交接單填報 (教師端)`;
           const navEl = document.getElementById('nav-school-name');
           if (navEl) navEl.textContent = settings.school_name;
           const headerEl = document.getElementById('header-school-name');
@@ -1205,15 +1206,15 @@ input[type="checkbox"] {
         customOpt.textContent = '✏️ 手動輸入其他教師姓名...';
         selectAbsentTeacher.appendChild(customOpt);
 
-        // 恢復選取或若該班僅有一位任課教師時自動選取
+        // 僅在使用者已有選擇時才恢復選取，預設保持「-- 請選擇請假教師 --」，不自動預選任何教師
         if (currentVal && (classTeachers.includes(currentVal) || otherTeachers.includes(currentVal))) {
           selectAbsentTeacher.value = currentVal;
           inputAbsentTeacherCustom.style.display = 'none';
         } else if (currentVal && selectAbsentTeacher.value === '__custom__') {
           inputAbsentTeacherCustom.value = currentVal;
           inputAbsentTeacherCustom.style.display = 'block';
-        } else if (classTeachers.length === 1) {
-          selectAbsentTeacher.value = classTeachers[0];
+        } else {
+          selectAbsentTeacher.value = '';
           inputAbsentTeacherCustom.style.display = 'none';
         }
       }

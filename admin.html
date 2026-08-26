@@ -1216,6 +1216,7 @@ header p {
       function applySettingsToForm(settings) {
         if (!settings) return;
         if (settings.school_name) {
+          document.title = `${settings.school_name} - 代課費計算與管理後台 (行政端)`;
           cfgSchoolName.value = settings.school_name;
           navSchoolName.textContent = settings.school_name;
           headerSchoolName.textContent = `${settings.school_name} - 代課管理後台`;
