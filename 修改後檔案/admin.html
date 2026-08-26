@@ -436,16 +436,63 @@ header p {
   border-radius: 6px;
   font-weight: 600;
 }
-.gas-env-badge {
-  background: rgba(16, 185, 129, 0.2);
-  border: 1px solid #10b981;
-  color: #6ee7b7;
-  font-size: 0.75rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: 9999px;
+.mentor-fee-input {
+  width: 95px;
+  padding: 0.35rem 0.5rem;
+  text-align: right;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 6px;
+  font-weight: 700;
+  color: #ea580c;
+  background: #fffbeb;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+.mentor-fee-input:focus {
+  border-color: #ea580c;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
+  outline: none;
+}
+.status-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  font-weight: 700;
+}
+.status-confirmed {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+.status-pending {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+}
+.teacher-filter-btn {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all 0.15s;
+}
+.teacher-filter-btn:hover {
+  background: #e0e7ff;
+  text-decoration: underline;
+}
+.teacher-filter-btn.active {
+  background: var(--primary-color);
+  color: white;
 }
   </style>
 </head>
@@ -550,22 +597,25 @@ header p {
       </section>
 
       <!-- TABLES SECTION -->
-      <div class="grid-layout" style="grid-template-columns: 0.9fr 1.1fr;">
+      <div class="grid-layout" style="grid-template-columns: 1fr 1.05fr;">
         
         <!-- Left: Grouped Summary Table (Who gets paid how much) -->
         <div class="panel">
-          <div class="panel-title">
-            <i class="fa-solid fa-users-viewfinder"></i> 代課教師月領款彙整表
+          <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+            <span><i class="fa-solid fa-users-viewfinder"></i> 代課教師月領款彙整表</span>
+            <span style="font-size: 0.82rem; color: #ea580c; font-weight: normal; background: #fffbeb; padding: 0.2rem 0.5rem; border-radius: 4px; border: 1px solid #fef3c7;">
+              <i class="fa-solid fa-pen-to-square"></i> 導師加給可直接編輯修改
+            </span>
           </div>
           
           <div class="records-table-container">
-            <table class="records-table">
+            <table class="records-table" id="table-summary">
               <thead>
                 <tr>
                   <th>代課教師</th>
                   <th style="text-align: center;">總節數</th>
-                  <th style="text-align: right;">鐘點費</th>
-                  <th style="text-align: right;">導師加給</th>
+                  <th style="text-align: right;">鐘點費 (A)</th>
+                  <th style="text-align: right; width: 110px;">導師加給 (B)</th>
                   <th style="text-align: right; font-weight: bold; color: var(--primary-color);">應領總額</th>
                 </tr>
               </thead>
@@ -574,20 +624,41 @@ header p {
                   <td colspan="5" style="text-align: center; color: var(--text-light); padding: 2rem;">當月無任何代課紀錄</td>
                 </tr>
               </tbody>
+              <tfoot id="summary-tfoot" style="background: #f8fafc; font-weight: bold; border-top: 2px solid var(--border-color); display: none;">
+                <tr>
+                  <td>全校總計</td>
+                  <td style="text-align: center;" id="foot-total-periods">0 節</td>
+                  <td style="text-align: right;" id="foot-total-classfee">$0</td>
+                  <td style="text-align: right; color: #ea580c;" id="foot-total-mentorfee">$0</td>
+                  <td style="text-align: right; color: var(--primary-color); font-size: 1.05rem;" id="foot-grand-total">$0</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
           
-          <div style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
-            <button class="btn btn-primary" id="btn-export-current-month">
-              <i class="fa-solid fa-file-invoice"></i> 1. 下載當月結算 JSON (Word 核銷用)
+          <div style="margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.65rem;">
+            <button class="btn btn-primary" id="btn-save-mentor-fees" style="background: #16a34a; border-color: #16a34a; font-weight: 700;">
+              <i class="fa-solid fa-floppy-disk"></i> 💾 儲存導師加給與應領總額至試算表
             </button>
-            
-            <div style="display: flex; gap: 0.5rem;">
-              <button class="btn btn-secondary" id="btn-export-all" style="flex: 1;">
-                <i class="fa-solid fa-file-export"></i> 備份所有 JSON
+
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <button class="btn btn-secondary" id="btn-print-voucher" style="flex: 1; min-width: 140px;">
+                <i class="fa-solid fa-print"></i> 🖨️ 列印印領清冊
               </button>
-              <button class="btn btn-danger" id="btn-clear-cache" style="flex: 1;">
-                <i class="fa-solid fa-trash-can"></i> 清除本地快取
+              <button class="btn btn-secondary" id="btn-export-csv" style="flex: 1; min-width: 140px;">
+                <i class="fa-solid fa-file-excel" style="color: #4ade80;"></i> 📊 匯出 Excel (CSV)
+              </button>
+            </div>
+
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <button class="btn btn-outline" id="btn-export-current-month" style="flex: 1; min-width: 150px; font-size: 0.85rem;">
+                <i class="fa-solid fa-file-invoice"></i> 1. 下載 JSON (Word用)
+              </button>
+              <button class="btn btn-outline" id="btn-export-all" style="flex: 1; min-width: 110px; font-size: 0.85rem;">
+                <i class="fa-solid fa-file-export"></i> 備份全部 JSON
+              </button>
+              <button class="btn btn-outline" id="btn-clear-cache" style="flex: 1; min-width: 100px; font-size: 0.85rem; color: #dc2626; border-color: #fca5a5;">
+                <i class="fa-solid fa-trash-can"></i> 清除快取
               </button>
             </div>
           </div>
@@ -595,26 +666,53 @@ header p {
 
         <!-- Right: Detailed Monthly Records -->
         <div class="panel">
-          <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center;">
-            <span><i class="fa-solid fa-list"></i> 當月代課詳細明細</span>
-            <span style="font-size: 0.8rem; color: var(--text-light); font-weight: normal;" id="detail-count-badge">共 0 筆明細</span>
+          <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+            <div>
+              <span><i class="fa-solid fa-list"></i> 當月代課詳細明細</span>
+              <span style="font-size: 0.8rem; color: var(--text-light); font-weight: normal; margin-left: 0.4rem;" id="detail-count-badge">共 0 筆明細</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <input type="text" id="input-detail-search" placeholder="🔍 搜尋教師/班級/日期..." style="font-size: 0.85rem; padding: 0.3rem 0.6rem; border-radius: 6px; border: 1px solid #cbd5e1; width: 170px;">
+              <button type="button" class="btn btn-outline" id="btn-clear-filter" style="display: none; font-size: 0.75rem; padding: 0.25rem 0.5rem; color: #ea580c; border-color: #fdba74;">
+                <i class="fa-solid fa-xmark"></i> 清除篩選
+              </button>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; background: #f8fafc; padding: 0.4rem 0.75rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.85rem;">
+            <div style="display: flex; align-items: center; gap: 0.4rem;">
+              <label style="display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0; cursor: pointer;">
+                <input type="checkbox" id="chk-all-details">
+                <span>全選目前明細</span>
+              </label>
+            </div>
+            <div style="display: flex; gap: 0.4rem;">
+              <button type="button" class="btn btn-outline" id="btn-batch-confirm" style="font-size: 0.78rem; padding: 0.25rem 0.6rem; color: #16a34a; border-color: #86efac;">
+                <i class="fa-solid fa-circle-check"></i> 標記為已核銷
+              </button>
+              <button type="button" class="btn btn-outline" id="btn-batch-unconfirm" style="font-size: 0.78rem; padding: 0.25rem 0.6rem; color: #64748b; border-color: #cbd5e1;">
+                <i class="fa-solid fa-clock-rotate-left"></i> 標記為待核對
+              </button>
+            </div>
           </div>
           
-          <div class="records-table-container" style="max-height: 480px; overflow-y: auto;">
-            <table class="records-table">
+          <div class="records-table-container" style="max-height: 440px; overflow-y: auto;">
+            <table class="records-table" id="table-details">
               <thead>
                 <tr>
+                  <th style="width: 32px; text-align: center;"></th>
                   <th>日期</th>
                   <th>班級</th>
                   <th>請假教師</th>
                   <th>代課教師</th>
                   <th style="text-align: center;">節數</th>
-                  <th style="text-align: right;">總金額</th>
+                  <th style="text-align: right;">金額</th>
+                  <th style="text-align: center;">狀態</th>
                 </tr>
               </thead>
               <tbody id="detail-tbody">
                 <tr>
-                  <td colspan="6" style="text-align: center; color: var(--text-light); padding: 2rem;">無代課明細紀錄</td>
+                  <td colspan="8" style="text-align: center; color: var(--text-light); padding: 2rem;">無代課明細紀錄</td>
                 </tr>
               </tbody>
             </table>
@@ -949,6 +1047,62 @@ header p {
       </div>
     </div>
 
+    <!-- PRINT VOUCHER MODAL (A4 橫式月度印領清冊預覽與列印) -->
+    <div class="modal-overlay" id="print-voucher-modal">
+      <div class="modal" style="max-width: 960px; width: 95%; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-title" style="display: flex; justify-content: space-between; align-items: center;">
+          <span><i class="fa-solid fa-print"></i> 月度印領清冊列印預覽 (A4 橫式)</span>
+          <button type="button" class="btn btn-outline" id="btn-close-print-modal" style="padding: 0.25rem 0.6rem; font-size: 0.85rem;">
+            <i class="fa-solid fa-xmark"></i> 關閉
+          </button>
+        </div>
+
+        <div id="print-voucher-area" style="background: white; padding: 1.5rem; border: 1px solid #cbd5e1; border-radius: 6px; font-family: 'Times New Roman', PMingLiU, serif; color: #0f172a;">
+          <div style="text-align: center; margin-bottom: 1.25rem;">
+            <h2 id="pv-school-name" style="margin: 0 0 0.35rem 0; font-size: 1.45rem; letter-spacing: 2px; font-weight: 700;">馬鳴國小</h2>
+            <h3 id="pv-title" style="margin: 0 0 0.35rem 0; font-size: 1.2rem; font-weight: 600;">代課教師鐘點費及導師加給印領清冊</h3>
+            <p id="pv-month" style="margin: 0; font-size: 0.95rem; color: #334155;">中華民國 114 年 8 月份</p>
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; font-size: 0.9rem;" border="1" cellpadding="6">
+            <thead>
+              <tr style="background: #f8fafc; text-align: center;">
+                <th style="width: 45px;">序號</th>
+                <th style="width: 110px;">代課教師</th>
+                <th style="width: 80px;">代課節數</th>
+                <th style="width: 85px;">單節費率</th>
+                <th style="width: 100px;">課堂鐘點費</th>
+                <th style="width: 100px;">導師加給</th>
+                <th style="width: 110px;">應領總額</th>
+                <th style="width: 130px;">簽名或蓋章</th>
+                <th>備註</th>
+              </tr>
+            </thead>
+            <tbody id="pv-tbody">
+              <!-- JS 動態填入 -->
+            </tbody>
+            <tfoot id="pv-tfoot" style="font-weight: bold; background: #f8fafc;">
+              <!-- JS 動態填入 -->
+            </tfoot>
+          </table>
+
+          <div style="display: flex; justify-content: space-between; margin-top: 2.5rem; font-size: 0.95rem; padding: 0 0.5rem;">
+            <div>承辦人：_______________</div>
+            <div>教務/教導主任：_______________</div>
+            <div>主計主任：_______________</div>
+            <div>校長：_______________</div>
+          </div>
+        </div>
+
+        <div class="modal-buttons">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-print">取消</button>
+          <button type="button" class="btn btn-primary" id="btn-do-print" style="padding: 0.5rem 1.8rem;">
+            <i class="fa-solid fa-print"></i> 立即列印清冊
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- Javascript Logic for Admin Page -->
@@ -1023,11 +1177,34 @@ header p {
       const monthStatMentorFee = document.getElementById('month-stat-mentor-fee');
       const monthStatTotal = document.getElementById('month-stat-total');
       const summaryTbody = document.getElementById('summary-tbody');
+      const summaryTfoot = document.getElementById('summary-tfoot');
+      const footTotalPeriods = document.getElementById('foot-total-periods');
+      const footTotalClassfee = document.getElementById('foot-total-classfee');
+      const footTotalMentorfee = document.getElementById('foot-total-mentorfee');
+      const footGrandTotal = document.getElementById('foot-grand-total');
       const detailTbody = document.getElementById('detail-tbody');
       const detailCountBadge = document.getElementById('detail-count-badge');
+      const inputDetailSearch = document.getElementById('input-detail-search');
+      const btnClearFilter = document.getElementById('btn-clear-filter');
+      const chkAllDetails = document.getElementById('chk-all-details');
+      const btnBatchConfirm = document.getElementById('btn-batch-confirm');
+      const btnBatchUnconfirm = document.getElementById('btn-batch-unconfirm');
+      const btnSaveMentorFees = document.getElementById('btn-save-mentor-fees');
+      const btnPrintVoucher = document.getElementById('btn-print-voucher');
+      const btnExportCsv = document.getElementById('btn-export-csv');
       const btnExportMonth = document.getElementById('btn-export-current-month');
       const btnExportAll = document.getElementById('btn-export-all');
       const btnClearCache = document.getElementById('btn-clear-cache');
+
+      // Print Modal Elements
+      const printVoucherModal = document.getElementById('print-voucher-modal');
+      const btnClosePrintModal = document.getElementById('btn-close-print-modal');
+      const btnCancelPrint = document.getElementById('btn-cancel-print');
+      const btnDoPrint = document.getElementById('btn-do-print');
+      const pvSchoolName = document.getElementById('pv-school-name');
+      const pvMonth = document.getElementById('pv-month');
+      const pvTbody = document.getElementById('pv-tbody');
+      const pvTfoot = document.getElementById('pv-tfoot');
 
       const today = new Date();
       selectMonth.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -1036,93 +1213,447 @@ header p {
         ? (JSON.parse(localStorage.getItem('admin_records_cache')) || [])
         : [];
 
+      let currentFilterTeacher = null;
+      let teacherMentorFeesMap = {};
+
       const lastSync = localStorage.getItem('gas_last_sync_time');
       if (lastSync) syncStatusText.textContent = `上次更新：${lastSync}`;
 
-      function renderDashboard() {
-        monthStatCount.textContent = `${allRecords.length} 筆`;
-        
-        let totalPeriods = 0;
-        let totalMentorFee = 0;
-        let grandTotal = 0;
+      function getTeacherAggregates() {
         const teacherMap = {};
-
         allRecords.forEach(rec => {
-          const isDaily = rec.payMode === 'mentorDaily';
-          const fee = Number(rec.classFee) || 0;
-          const mentorFee = Number(rec.mentorFee) || 0;
-          const total = Number(rec.totalFee) || 0;
+          const teacher = String(rec.subTeacher || '未填寫').trim();
           const periods = Number(rec.periodsCount) || 0;
+          const rate = Number(rec.rate) || 405;
+          const classFee = Number(rec.classFee) || (periods * rate);
+          const mentorFeeInRec = Number(rec.mentorFee) || 0;
 
-          if (!isDaily) totalPeriods += periods;
-          totalMentorFee += mentorFee;
-          grandTotal += total;
-
-          const teacher = rec.subTeacher || '未填寫';
           if (!teacherMap[teacher]) {
-            teacherMap[teacher] = { periods: 0, classFee: 0, mentorFee: 0, totalFee: 0 };
+            teacherMap[teacher] = {
+              teacher: teacher,
+              periods: 0,
+              rate: rate,
+              classFee: 0,
+              mentorFee: 0,
+              totalFee: 0
+            };
           }
-          if (!isDaily) teacherMap[teacher].periods += periods;
-          teacherMap[teacher].classFee += fee;
-          teacherMap[teacher].mentorFee += mentorFee;
-          teacherMap[teacher].totalFee += total;
+          teacherMap[teacher].periods += periods;
+          teacherMap[teacher].classFee += classFee;
+          teacherMap[teacher].rate = rate;
+
+          // 若尚未自訂編輯，預設從紀錄中累計
+          if (!teacherMentorFeesMap.hasOwnProperty(teacher)) {
+            teacherMap[teacher].mentorFee += mentorFeeInRec;
+          }
         });
 
-        monthStatPeriods.textContent = `${totalPeriods} 節`;
-        monthStatMentorFee.textContent = `$${totalMentorFee.toLocaleString()}`;
-        monthStatTotal.textContent = `$${grandTotal.toLocaleString()}`;
+        // 套用使用者在網頁上編輯的導師加給
+        for (const t in teacherMap) {
+          if (teacherMentorFeesMap.hasOwnProperty(t)) {
+            teacherMap[t].mentorFee = Number(teacherMentorFeesMap[t]) || 0;
+          }
+          teacherMap[t].totalFee = teacherMap[t].classFee + teacherMap[t].mentorFee;
+        }
 
-        // Render Grouped Summary Table
+        return teacherMap;
+      }
+
+      function renderDashboard() {
+        const teacherMap = getTeacherAggregates();
         const teachers = Object.keys(teacherMap).sort();
+
+        let grandPeriods = 0;
+        let grandClassFee = 0;
+        let grandMentorFee = 0;
+        let grandTotalFee = 0;
+
+        teachers.forEach(t => {
+          grandPeriods += teacherMap[t].periods;
+          grandClassFee += teacherMap[t].classFee;
+          grandMentorFee += teacherMap[t].mentorFee;
+          grandTotalFee += teacherMap[t].totalFee;
+        });
+
+        // 頂部統計卡片
+        monthStatCount.textContent = `${allRecords.length} 筆`;
+        monthStatPeriods.textContent = `${grandPeriods} 節`;
+        monthStatMentorFee.textContent = `$${grandMentorFee.toLocaleString()}`;
+        monthStatTotal.textContent = `$${grandTotalFee.toLocaleString()}`;
+
+        // 1. 渲染左側彙整表
         if (teachers.length === 0) {
           summaryTbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-light); padding: 2rem;">當月無任何代課紀錄</td></tr>';
+          summaryTfoot.style.display = 'none';
         } else {
           summaryTbody.innerHTML = '';
           teachers.forEach(t => {
             const data = teacherMap[t];
+            const isFiltered = currentFilterTeacher === t;
             const tr = document.createElement('tr');
+            if (isFiltered) tr.style.backgroundColor = '#eff6ff';
+
             tr.innerHTML = `
-              <td><strong>${t}</strong></td>
-              <td style="text-align: center;">${data.periods} 節</td>
+              <td>
+                <button type="button" class="teacher-filter-btn ${isFiltered ? 'active' : ''}" data-teacher="${t}" title="點擊篩選此教師明細">
+                  <i class="fa-solid fa-user-check"></i> ${t}
+                </button>
+              </td>
+              <td style="text-align: center; font-weight: 600;">${data.periods} 節</td>
               <td style="text-align: right;">$${data.classFee.toLocaleString()}</td>
-              <td style="text-align: right;">$${data.mentorFee.toLocaleString()}</td>
-              <td style="text-align: right; font-weight: bold; color: var(--primary-color);">$${data.totalFee.toLocaleString()}</td>
+              <td style="text-align: right;">
+                <input type="number" min="0" step="1" class="mentor-fee-input" data-teacher="${t}" value="${data.mentorFee}">
+              </td>
+              <td style="text-align: right; font-weight: bold; color: var(--primary-color); font-size: 0.95rem;" id="row-total-${t}">
+                $${data.totalFee.toLocaleString()}
+              </td>
             `;
             summaryTbody.appendChild(tr);
           });
+
+          // 彙整表底部「全校總計」列
+          footTotalPeriods.textContent = `${grandPeriods} 節`;
+          footTotalClassfee.textContent = `$${grandClassFee.toLocaleString()}`;
+          footTotalMentorfee.textContent = `$${grandMentorFee.toLocaleString()}`;
+          footGrandTotal.textContent = `$${grandTotalFee.toLocaleString()}`;
+          summaryTfoot.style.display = 'table-footer-group';
+
+          // 綁定導師加給輸入事件
+          document.querySelectorAll('.mentor-fee-input').forEach(input => {
+            input.addEventListener('input', (e) => {
+              const teacherName = e.target.getAttribute('data-teacher');
+              const val = Number(e.target.value) || 0;
+              teacherMentorFeesMap[teacherName] = val;
+
+              // 即時更新該列總額
+              const tData = teacherMap[teacherName];
+              if (tData) {
+                const newRowTotal = tData.classFee + val;
+                const cellEl = document.getElementById(`row-total-${teacherName}`);
+                if (cellEl) cellEl.textContent = `$${newRowTotal.toLocaleString()}`;
+              }
+
+              // 即時更新全校總計與上方統計卡片
+              let currentGrandMentor = 0;
+              let currentGrandTotal = 0;
+              teachers.forEach(k => {
+                const mFee = teacherMentorFeesMap.hasOwnProperty(k) ? teacherMentorFeesMap[k] : teacherMap[k].mentorFee;
+                currentGrandMentor += mFee;
+                currentGrandTotal += (teacherMap[k].classFee + mFee);
+              });
+              footTotalMentorfee.textContent = `$${currentGrandMentor.toLocaleString()}`;
+              footGrandTotal.textContent = `$${currentGrandTotal.toLocaleString()}`;
+              monthStatMentorFee.textContent = `$${currentGrandMentor.toLocaleString()}`;
+              monthStatTotal.textContent = `$${currentGrandTotal.toLocaleString()}`;
+            });
+          });
+
+          // 綁定教師按鈕篩選事件
+          document.querySelectorAll('.teacher-filter-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+              const teacherName = btn.getAttribute('data-teacher');
+              if (currentFilterTeacher === teacherName) {
+                currentFilterTeacher = null;
+              } else {
+                currentFilterTeacher = teacherName;
+              }
+              renderDashboard();
+            });
+          });
         }
 
-        // Render Detailed Records Table
-        detailCountBadge.textContent = `共 ${allRecords.length} 筆明細`;
-        if (allRecords.length === 0) {
-          detailTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-light); padding: 2rem;">無代課明細紀錄</td></tr>';
+        // 2. 渲染右側詳細明細表
+        renderDetailTable();
+      }
+
+      function renderDetailTable() {
+        const query = inputDetailSearch.value.trim().toLowerCase();
+        let filtered = allRecords.filter(rec => {
+          if (currentFilterTeacher && String(rec.subTeacher || '').trim() !== currentFilterTeacher) {
+            return false;
+          }
+          if (query) {
+            const matchText = `${rec.date} ${rec.className} ${rec.absentTeacher} ${rec.subTeacher}`.toLowerCase();
+            if (!matchText.includes(query)) return false;
+          }
+          return true;
+        });
+
+        // 篩選提示標籤與清除按鈕
+        if (currentFilterTeacher) {
+          detailCountBadge.innerHTML = `正在篩選：<strong>${currentFilterTeacher}</strong> (${filtered.length}/${allRecords.length} 筆)`;
+          btnClearFilter.style.display = 'inline-flex';
+        } else if (query) {
+          detailCountBadge.innerHTML = `搜尋關鍵字 (${filtered.length}/${allRecords.length} 筆)`;
+          btnClearFilter.style.display = 'inline-flex';
         } else {
-          detailTbody.innerHTML = '';
-          allRecords.forEach(rec => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-              <td>${rec.date || ''}</td>
-              <td>${rec.className || ''}</td>
-              <td>${rec.absentTeacher || ''}</td>
-              <td><strong>${rec.subTeacher || ''}</strong></td>
-              <td style="text-align: center;">${rec.periodsCount || 0}</td>
-              <td style="text-align: right; font-weight: 600;">$${(Number(rec.totalFee) || 0).toLocaleString()}</td>
-            `;
-            detailTbody.appendChild(tr);
-          });
+          detailCountBadge.textContent = `共 ${allRecords.length} 筆明細`;
+          btnClearFilter.style.display = 'none';
+        }
+
+        if (filtered.length === 0) {
+          detailTbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--text-light); padding: 2rem;">無符合條件的代課明細</td></tr>';
+          return;
+        }
+
+        detailTbody.innerHTML = '';
+        filtered.forEach(rec => {
+          const periods = Number(rec.periodsCount) || 0;
+          const rate = Number(rec.rate) || 405;
+          const totalFee = Number(rec.totalFee) || (periods * rate);
+          
+          let statusText = '待核對';
+          if (rec.periodsDetail && rec.periodsDetail.length > 0) {
+            const hasConfirmed = rec.periodsDetail.some(p => p.status === '已核銷' || p.status === '已確認');
+            if (hasConfirmed) statusText = '已核銷';
+          }
+
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="text-align: center;">
+              <input type="checkbox" class="chk-detail-item" value="${rec.id}">
+            </td>
+            <td>${rec.date || ''}</td>
+            <td>${rec.className || ''}</td>
+            <td>${rec.absentTeacher || ''}</td>
+            <td><strong>${rec.subTeacher || ''}</strong></td>
+            <td style="text-align: center;">${periods} 節</td>
+            <td style="text-align: right; font-weight: 600;">$${totalFee.toLocaleString()}</td>
+            <td style="text-align: center;">
+              <span class="status-badge ${statusText === '已核銷' ? 'status-confirmed' : 'status-pending'}">
+                ${statusText === '已核銷' ? '<i class="fa-solid fa-check"></i> 已核銷' : '<i class="fa-regular fa-clock"></i> 待核對'}
+              </span>
+            </td>
+          `;
+          detailTbody.appendChild(tr);
+        });
+      }
+
+      // 明細搜尋與篩選事件
+      inputDetailSearch.addEventListener('input', renderDetailTable);
+      btnClearFilter.addEventListener('click', () => {
+        currentFilterTeacher = null;
+        inputDetailSearch.value = '';
+        renderDashboard();
+      });
+
+      // 全選明細核取方塊
+      chkAllDetails.addEventListener('change', () => {
+        const isChecked = chkAllDetails.checked;
+        document.querySelectorAll('.chk-detail-item').forEach(cb => cb.checked = isChecked);
+      });
+
+      // 儲存導師加給與總額至 Google 試算表
+      btnSaveMentorFees.addEventListener('click', () => {
+        const targetMonth = selectMonth.value;
+        const key = localStorage.getItem('gas_secret_key') || '087525402';
+
+        if (allRecords.length === 0) {
+          alert('⚠️ 當月尚無代課紀錄，無須儲存！');
+          return;
+        }
+
+        btnSaveMentorFees.disabled = true;
+        btnSaveMentorFees.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 儲存試算表中...';
+
+        if (isGasEnv) {
+          google.script.run
+            .withSuccessHandler((res) => {
+              btnSaveMentorFees.disabled = false;
+              btnSaveMentorFees.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> 💾 儲存導師加給與應領總額至試算表';
+              if (res && res.status === 'success') {
+                alert(res.message);
+                if (res.records) {
+                  allRecords = res.records;
+                  localStorage.setItem('admin_records_cache', JSON.stringify(allRecords));
+                  localStorage.setItem('admin_records_cache_month', targetMonth);
+                  teacherMentorFeesMap = {};
+                  renderDashboard();
+                }
+              } else {
+                alert('❌ 儲存失敗：' + (res ? res.message : '未知錯誤'));
+              }
+            })
+            .withFailureHandler((err) => {
+              btnSaveMentorFees.disabled = false;
+              btnSaveMentorFees.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> 💾 儲存導師加給與應領總額至試算表';
+              alert('❌ 儲存發生錯誤：' + err.message);
+            })
+            .updateMonthlyMentorFees(targetMonth, teacherMentorFeesMap, key);
+        } else {
+          btnSaveMentorFees.disabled = false;
+          btnSaveMentorFees.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> 💾 儲存導師加給與應領總額至試算表';
+          alert('本機測試環境下，導師加給已在本地更新！');
+        }
+      });
+
+      // 批次核銷狀態更新
+      function executeBatchStatus(newStatus) {
+        const checkedBoxes = Array.from(document.querySelectorAll('.chk-detail-item:checked'));
+        if (checkedBoxes.length === 0) {
+          alert('請先勾選要處理的明細紀錄！');
+          return;
+        }
+        const appIds = checkedBoxes.map(cb => cb.value);
+        const targetMonth = selectMonth.value;
+        const key = localStorage.getItem('gas_secret_key') || '087525402';
+
+        if (isGasEnv) {
+          google.script.run
+            .withSuccessHandler((res) => {
+              if (res && res.status === 'success') {
+                alert(res.message);
+                if (res.records) {
+                  allRecords = res.records;
+                  localStorage.setItem('admin_records_cache', JSON.stringify(allRecords));
+                  renderDashboard();
+                }
+              } else {
+                alert('❌ 更新失敗：' + (res ? res.message : '未知錯誤'));
+              }
+            })
+            .batchUpdateRecordStatus(targetMonth, appIds, newStatus, key);
+        } else {
+          alert(`已在本地標記 ${appIds.length} 筆為「${newStatus}」！`);
         }
       }
 
-      renderDashboard();
+      btnBatchConfirm.addEventListener('click', () => executeBatchStatus('已核銷'));
+      btnBatchUnconfirm.addEventListener('click', () => executeBatchStatus('待核對'));
 
-      async function syncCloudData(silent = false) {
-        const targetMonth = selectMonth.value;
-        const key = localStorage.getItem('gas_secret_key') || '';
-        if (!key) {
-          alert('⚠️ 請先點選右上角鑰匙設定，輸入安全金鑰 (SECRET_KEY)！');
-          modal.style.display = 'flex';
+      // 匯出 Excel (CSV)
+      btnExportCsv.addEventListener('click', () => {
+        const teacherMap = getTeacherAggregates();
+        const teachers = Object.keys(teacherMap).sort();
+        if (teachers.length === 0) {
+          alert('當月無任何彙整資料可匯出！');
           return;
         }
+
+        const schoolName = (typeof SERVER_SYSTEM_SETTINGS !== 'undefined' && SERVER_SYSTEM_SETTINGS.school_name) || '馬鳴國小';
+        let csvContent = '\uFEFF'; // UTF-8 BOM
+        csvContent += `"${schoolName} 代課教師月領款彙整表 (${selectMonth.value})"\n`;
+        csvContent += '"序號","代課教師","代課節數","課堂鐘點費","導師加給","應領總額"\n';
+
+        let idx = 1;
+        let sumPeriods = 0, sumClassFee = 0, sumMentorFee = 0, sumTotal = 0;
+        teachers.forEach(t => {
+          const d = teacherMap[t];
+          csvContent += `"${idx++}","${t}","${d.periods}","${d.classFee}","${d.mentorFee}","${d.totalFee}"\n`;
+          sumPeriods += d.periods;
+          sumClassFee += d.classFee;
+          sumMentorFee += d.mentorFee;
+          sumTotal += d.totalFee;
+        });
+
+        csvContent += `"合計","全校總計","${sumPeriods}","${sumClassFee}","${sumMentorFee}","${sumTotal}"\n`;
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `代課教師月領款彙整_${selectMonth.value}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      });
+
+      // 列印 A4 印領清冊 Modal
+      btnPrintVoucher.addEventListener('click', () => {
+        const teacherMap = getTeacherAggregates();
+        const teachers = Object.keys(teacherMap).sort();
+        if (teachers.length === 0) {
+          alert('當月無代課資料可列印！');
+          return;
+        }
+
+        const schoolName = (typeof SERVER_SYSTEM_SETTINGS !== 'undefined' && SERVER_SYSTEM_SETTINGS.school_name) || document.getElementById('cfg-school-name').value || '馬鳴國小';
+        pvSchoolName.textContent = schoolName;
+
+        const parts = selectMonth.value.split('-');
+        const rocYear = parseInt(parts[0], 10) - 1911;
+        const monthNum = parseInt(parts[1], 10);
+        pvMonth.textContent = `中華民國 ${rocYear} 年 ${monthNum} 月份`;
+
+        pvTbody.innerHTML = '';
+        let idx = 1;
+        let sumPeriods = 0, sumClassFee = 0, sumMentorFee = 0, sumTotal = 0;
+
+        teachers.forEach(t => {
+          const d = teacherMap[t];
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="text-align: center;">${idx++}</td>
+            <td style="text-align: center; font-weight: bold;">${t}</td>
+            <td style="text-align: center;">${d.periods}</td>
+            <td style="text-align: center;">$${d.rate}</td>
+            <td style="text-align: right;">$${d.classFee.toLocaleString()}</td>
+            <td style="text-align: right;">$${d.mentorFee.toLocaleString()}</td>
+            <td style="text-align: right; font-weight: bold;">$${d.totalFee.toLocaleString()}</td>
+            <td></td>
+            <td></td>
+          `;
+          pvTbody.appendChild(tr);
+          sumPeriods += d.periods;
+          sumClassFee += d.classFee;
+          sumMentorFee += d.mentorFee;
+          sumTotal += d.totalFee;
+        });
+
+        pvTfoot.innerHTML = `
+          <tr>
+            <td colspan="2" style="text-align: center;">全校合計</td>
+            <td style="text-align: center;">${sumPeriods}</td>
+            <td></td>
+            <td style="text-align: right;">$${sumClassFee.toLocaleString()}</td>
+            <td style="text-align: right;">$${sumMentorFee.toLocaleString()}</td>
+            <td style="text-align: right;">$${sumTotal.toLocaleString()}</td>
+            <td colspan="2"></td>
+          </tr>
+        `;
+
+        printVoucherModal.style.display = 'flex';
+      });
+
+      btnClosePrintModal.addEventListener('click', () => printVoucherModal.style.display = 'none');
+      btnCancelPrint.addEventListener('click', () => printVoucherModal.style.display = 'none');
+      btnDoPrint.addEventListener('click', () => {
+        const printContent = document.getElementById('print-voucher-area').innerHTML;
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8">
+              <title>代課教師鐘點費及導師加給印領清冊</title>
+              <style>
+                @page { size: A4 landscape; margin: 15mm; }
+                body { font-family: "Times New Roman", PMingLiU, "標楷體", serif; margin: 0; padding: 10px; color: #000; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13pt; }
+                th, td { border: 1px solid #000; padding: 7px 6px; }
+                th { background-color: #f2f2f2; text-align: center; }
+                @media print {
+                  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                }
+              </style>
+            </head>
+            <body>
+              ${printContent}
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.close();
+        }, 300);
+      });
+
+      // 同步雲端資料
+      async function syncCloudData(silent = false) {
+        const targetMonth = selectMonth.value;
+        const key = localStorage.getItem('gas_secret_key') || '087525402';
 
         btnSync.disabled = true;
         btnSync.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 資料同步中...';
@@ -1138,6 +1669,8 @@ header p {
             const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
             localStorage.setItem('gas_last_sync_time', timeStr);
             syncStatusText.textContent = `同步時間：${timeStr}`;
+            teacherMentorFeesMap = {};
+            currentFilterTeacher = null;
             renderDashboard();
             if (!silent) alert(`🎉 ${targetMonth} 資料同步成功！共取得 ${data.length} 筆代課紀錄。`);
           }
@@ -1152,11 +1685,22 @@ header p {
               alert('❌ 同步失敗：' + err.message);
             })
             .getMonthlyRecords(targetMonth, key);
+        } else {
+          btnSync.disabled = false;
+          btnSync.innerHTML = '<i class="fa-solid fa-rotate"></i> 從雲端同步資料';
+          renderDashboard();
         }
       }
 
       btnSync.addEventListener('click', () => syncCloudData(false));
       selectMonth.addEventListener('change', () => syncCloudData(true));
+
+      // 頁面初次載入時自動非同步同步一次資料
+      if (isGasEnv) {
+        syncCloudData(true);
+      }
+
+      renderDashboard();
 
       btnExportMonth.addEventListener('click', () => {
         if (allRecords.length === 0) {

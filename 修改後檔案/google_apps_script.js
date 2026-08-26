@@ -731,6 +731,14 @@ function buildRecordsForMonth(ss, targetMonth) {
   for (var k = 0; k < sumValues.length; k++) {
     var s = sumValues[k];
     var currentAppId = s[0];
+    var periodsCount = Number(s[9]) || 0;
+    var rate = Number(s[10]) || 0;
+    var classFee = Number(s[11]) || (periodsCount * rate);
+    var isActingMentor = s[12] === "是";
+    var actingDays = Number(s[13]) || 0;
+    var mentorFee = Number(s[14]) || 0;
+    var totalFee = Number(s[15]) || (classFee + mentorFee);
+
     records.push({
       id: currentAppId,
       timestamp: s[1],
@@ -741,19 +749,123 @@ function buildRecordsForMonth(ss, targetMonth) {
       subTeacher: s[6],
       className: s[7],
       leaveType: s[8],
-      periodsCount: Number(s[9]) || 0,
-      rate: Number(s[10]) || 0,
-      classFee: Number(s[11]) || 0,
-      isActingMentor: s[12] === "是",
-      actingDays: Number(s[13]) || 0,
-      mentorFee: Number(s[14]) || 0,
-      totalFee: Number(s[15]) || 0,
+      periodsCount: periodsCount,
+      rate: rate,
+      classFee: classFee,
+      isActingMentor: isActingMentor,
+      actingDays: actingDays,
+      mentorFee: mentorFee,
+      totalFee: totalFee,
       payMode: s[16] || 'perPeriod',
       payNote: s[17] || "",
       periodsDetail: detailsMap[currentAppId] || []
     });
   }
   return records;
+}
+
+/**
+ * 更新指定月份各代課教師之導師加給與總額（需驗證金鑰，伺服端直連）
+ * @param {string} targetMonth - 例如 "2026-08"
+ * @param {Object} teacherMentorFeesMap - 例如 { "王小明": 1528, "蔡志益": 0 }
+ * @param {string} key - 安全管理金鑰
+ */
+function updateMonthlyMentorFees(targetMonth, teacherMentorFeesMap, key) {
+  var ss = getActiveSs();
+  if (!verifyAuthKey(key, ss)) {
+    return { status: "error", message: "未授權：安全金鑰錯誤。" };
+  }
+  try {
+    var summarySheet = ss.getSheetByName(targetMonth + "_總表");
+    if (!summarySheet) {
+      return { status: "error", message: "找不到該月份的總表分頁！" };
+    }
+    var lastRow = summarySheet.getLastRow();
+    if (lastRow <= 1) {
+      return { status: "error", message: "該月份總表尚無紀錄！" };
+    }
+
+    var values = summarySheet.getRange(2, 1, lastRow - 1, SUMMARY_HEADERS.length).getValues();
+    var updatedTeachers = {};
+    for (var i = 0; i < values.length; i++) {
+      var teacher = String(values[i][6] || '').trim();
+      var periods = Number(values[i][9]) || 0;
+      var rate = Number(values[i][10]) || 0;
+      var classFee = Number(values[i][11]) || (periods * rate);
+
+      if (teacherMentorFeesMap && teacherMentorFeesMap.hasOwnProperty(teacher)) {
+        var currentMentorFee = 0;
+        if (!updatedTeachers[teacher]) {
+          currentMentorFee = Number(teacherMentorFeesMap[teacher]) || 0;
+          updatedTeachers[teacher] = true;
+        } else {
+          currentMentorFee = 0;
+        }
+        var totalFee = classFee + currentMentorFee;
+        var rowNum = i + 2;
+        summarySheet.getRange(rowNum, 12).setValue(classFee); // 課堂鐘點費
+        summarySheet.getRange(rowNum, 15).setValue(currentMentorFee); // 導師費加給
+        summarySheet.getRange(rowNum, 16).setValue(totalFee); // 整單總金額
+        if (currentMentorFee > 0) {
+          summarySheet.getRange(rowNum, 13).setValue("是");
+        }
+      }
+    }
+
+    return {
+      status: "success",
+      message: "🎉 " + targetMonth + " 導師加給與應領總額已成功儲存至 Google 試算表！",
+      records: buildRecordsForMonth(ss, targetMonth)
+    };
+  } catch (err) {
+    return { status: "error", message: "更新導師加給失敗：" + err.toString() };
+  }
+}
+
+/**
+ * 批次更新指定明細核銷狀態（需驗證金鑰，伺服端直連）
+ */
+function batchUpdateRecordStatus(targetMonth, appIds, newStatus, key) {
+  var ss = getActiveSs();
+  if (!verifyAuthKey(key, ss)) {
+    return { status: "error", message: "未授權：安全金鑰錯誤。" };
+  }
+  try {
+    var detailSheet = ss.getSheetByName(targetMonth + "_明細");
+    if (!detailSheet) {
+      return { status: "error", message: "找不到該月份的明細分頁！" };
+    }
+    var lastRow = detailSheet.getLastRow();
+    if (lastRow <= 1) {
+      return { status: "error", message: "該月份明細分頁尚無資料！" };
+    }
+
+    var values = detailSheet.getRange(2, 1, lastRow - 1, DETAIL_HEADERS.length).getValues();
+    var count = 0;
+    var nowIso = new Date().toISOString();
+
+    for (var i = 0; i < values.length; i++) {
+      var id = String(values[i][0] || '');
+      if (!appIds || appIds.length === 0 || appIds.indexOf(id) !== -1) {
+        var rowNum = i + 2;
+        detailSheet.getRange(rowNum, DETAIL_COL_STATUS).setValue(newStatus);
+        if (newStatus === "已核銷" || newStatus === "已確認") {
+          detailSheet.getRange(rowNum, DETAIL_COL_CONFIRM_DATE).setValue(nowIso);
+        } else {
+          detailSheet.getRange(rowNum, DETAIL_COL_CONFIRM_DATE).setValue("");
+        }
+        count++;
+      }
+    }
+
+    return {
+      status: "success",
+      message: "已更新 " + count + " 筆明細狀態為「" + newStatus + "」！",
+      records: buildRecordsForMonth(ss, targetMonth)
+    };
+  } catch (err) {
+    return { status: "error", message: "批次更新失敗：" + err.toString() };
+  }
 }
 
 function formatDate(dateVal) {
