@@ -697,6 +697,23 @@ header p {
           </div>
         </div>
 
+        <div class="form-row" style="background: #fffbeb; border: 1px solid #fef3c7; padding: 1rem; border-radius: 8px; margin-bottom: 1.25rem;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="cfg-secret-key" style="color: #92400e; font-weight: 700;">
+              <i class="fa-solid fa-key" style="color: #ea580c;"></i> 安全管理金鑰密碼 (SECRET_KEY)
+            </label>
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.35rem;">
+              <input type="password" id="cfg-secret-key" placeholder="請設定安全金鑰 (預設: 087525402)" value="087525402" style="background: white; font-weight: 600; letter-spacing: 1px;">
+              <button type="button" class="btn btn-outline" id="btn-toggle-secret-key" title="顯示/隱藏密碼" style="padding: 0.5rem 0.9rem; background: white;">
+                <i class="fa-solid fa-eye" id="icon-toggle-secret-key"></i>
+              </button>
+            </div>
+            <small style="color: #78350f; margin-top: 0.35rem; display: block;">
+              用於行政核銷結算、儲存系統設定與匯入課表之防護密碼。<strong>儲存後自動同步至試算表與瀏覽器，無須再修改 Code.gs！</strong>
+            </small>
+          </div>
+        </div>
+
         <div style="margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 1rem;">
           <button class="btn btn-primary" id="btn-save-global-settings" style="padding: 0.75rem 2rem;">
             <i class="fa-solid fa-floppy-disk"></i> 儲存全域系統設定
@@ -1174,9 +1191,27 @@ header p {
       const cfgAcademicTerm = document.getElementById('cfg-academic-term');
       const cfgMentorRate = document.getElementById('cfg-mentor-rate');
       const cfgDutyItems = document.getElementById('cfg-duty-items');
+      const cfgSecretKey = document.getElementById('cfg-secret-key');
+      const btnToggleSecretKey = document.getElementById('btn-toggle-secret-key');
+      const iconToggleSecretKey = document.getElementById('icon-toggle-secret-key');
       const btnSaveGlobalSettings = document.getElementById('btn-save-global-settings');
       const navSchoolName = document.getElementById('nav-school-name');
       const headerSchoolName = document.getElementById('header-school-name');
+
+      // 密碼顯示/隱藏切換
+      if (btnToggleSecretKey && cfgSecretKey && iconToggleSecretKey) {
+        btnToggleSecretKey.addEventListener('click', () => {
+          if (cfgSecretKey.type === 'password') {
+            cfgSecretKey.type = 'text';
+            iconToggleSecretKey.classList.remove('fa-eye');
+            iconToggleSecretKey.classList.add('fa-eye-slash');
+          } else {
+            cfgSecretKey.type = 'password';
+            iconToggleSecretKey.classList.remove('fa-eye-slash');
+            iconToggleSecretKey.classList.add('fa-eye');
+          }
+        });
+      }
 
       function applySettingsToForm(settings) {
         if (!settings) return;
@@ -1190,6 +1225,14 @@ header p {
         if (settings.academic_year_term) cfgAcademicTerm.value = settings.academic_year_term;
         if (settings.mentor_daily_rate) cfgMentorRate.value = settings.mentor_daily_rate;
         if (settings.duty_items) cfgDutyItems.value = settings.duty_items;
+        if (settings.secret_key) {
+          cfgSecretKey.value = settings.secret_key;
+          localStorage.setItem('gas_secret_key', settings.secret_key);
+          inputSecretKey.value = settings.secret_key;
+        } else {
+          const stored = localStorage.getItem('gas_secret_key') || '087525402';
+          cfgSecretKey.value = stored;
+        }
       }
 
       // 載入預先注入的設定
@@ -1209,12 +1252,9 @@ header p {
       }
 
       btnSaveGlobalSettings.addEventListener('click', () => {
-        const key = localStorage.getItem('gas_secret_key') || '';
-        if (!key) {
-          alert('⚠️ 請先點選右上角鑰匙設定，輸入安全讀取金鑰 (SECRET_KEY)！');
-          modal.style.display = 'flex';
-          return;
-        }
+        const newKey = cfgSecretKey.value.trim() || '087525402';
+        const currentStoredKey = localStorage.getItem('gas_secret_key') || '087525402';
+        const authKey = currentStoredKey;
 
         const payload = {
           school_name: cfgSchoolName.value.trim() || '馬鳴國小',
@@ -1222,7 +1262,8 @@ header p {
           rate_per_period: cfgRatePerPeriod.value.trim() || '405',
           academic_year_term: cfgAcademicTerm.value.trim() || '114-1',
           mentor_daily_rate: cfgMentorRate.value.trim() || '1528',
-          duty_items: cfgDutyItems.value.trim() || '早修,打掃,午餐,午休,放學'
+          duty_items: cfgDutyItems.value.trim() || '早修,打掃,午餐,午休,放學',
+          secret_key: newKey
         };
 
         btnSaveGlobalSettings.disabled = true;
@@ -1234,7 +1275,9 @@ header p {
               btnSaveGlobalSettings.disabled = false;
               btnSaveGlobalSettings.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> 儲存全域系統設定';
               if (res && res.status === 'success') {
-                alert('🎉 全域系統設定已成功儲存至 Google 試算表！');
+                localStorage.setItem('gas_secret_key', newKey);
+                inputSecretKey.value = newKey;
+                alert('🎉 全域系統設定與安全管理金鑰已成功儲存至 Google 試算表！');
                 applySettingsToForm(res.settings);
               } else {
                 alert('❌ 儲存失敗：' + (res ? res.message : '未知錯誤'));
@@ -1245,7 +1288,7 @@ header p {
               btnSaveGlobalSettings.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> 儲存全域系統設定';
               alert('❌ 儲存失敗：' + err.message);
             })
-            .saveSystemSettingsData(payload, key);
+            .saveSystemSettingsData(payload, authKey);
         }
       });
 

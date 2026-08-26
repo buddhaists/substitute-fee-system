@@ -12,10 +12,11 @@
  */
 
 /**
- * 讀取金鑰（共用密碼）
- * ⚠️ 請在此設定您的安全金鑰，行政端讀取與結算資料時需驗證此金鑰。
+/**
+ * 預設安全金鑰（系統設定分頁未設定時之預設值）
+ * ⚠️ 現在可在「系統全域設定」介面中直接修改與儲存此金鑰，不再需要手動修改程式碼。
  */
-var SECRET_KEY = '請在此填入自訂的隨機安全金鑰密碼';
+var DEFAULT_SECRET_KEY = '087525402';
 
 // 課表分頁名稱（每學年更新課表時，直接覆蓋這個分頁的內容即可，不必改程式碼）
 var TIMETABLE_SHEET = 'Class_Timetables';
@@ -30,7 +31,8 @@ var DEFAULT_SETTINGS = [
   { name: "單節鐘點費率", key: "rate_per_period", value: "405", desc: "國小 405 元/節 (依教育部函文)" },
   { name: "學年學期", key: "academic_year_term", value: "114-1", desc: "當前運行的學年與學期" },
   { name: "代理導師預設日薪", key: "mentor_daily_rate", value: "1528", desc: "整天代導師之日薪預設標準" },
-  { name: "非計費作息項目", key: "duty_items", value: "早修,打掃,午餐,午休,放學", desc: "交接單上之作息指導項目(逗號分隔)" }
+  { name: "非計費作息項目", key: "duty_items", value: "早修,打鎖,午餐,午休,放學", desc: "交接單上之作息指導項目(逗號分隔)" },
+  { name: "安全管理金鑰", key: "secret_key", value: "087525402", desc: "行政端結算與課表匯入之安全管理金鑰(密碼)" }
 ];
 
 var SUMMARY_HEADERS = [
@@ -140,11 +142,12 @@ function doGet(e) {
     }
 
     if (params.month || params.action === "confirm") {
+      var ss = getActiveSs();
       // 驗證金鑰
-      if (params.key !== SECRET_KEY) {
+      if (!verifyAuthKey(params.key, ss)) {
         return getCorsResponse(JSON.stringify({
           status: "error",
-          message: "未授權：缺少或錯誤的金鑰。請在 admin.html 右上角齒輪設定中填入正確金鑰。"
+          message: "未授權：缺少或錯誤的金鑰。請在系統全域設定或右上角鑰匙圖示中輸入正確金鑰。"
         }), 'json');
       }
 
@@ -165,7 +168,6 @@ function doGet(e) {
         var today = new Date();
         targetMonth = today.getFullYear() + "-" + ("0" + (today.getMonth() + 1)).slice(-2);
       }
-      var ss = getActiveSs();
       return getCorsResponse(JSON.stringify(buildRecordsForMonth(ss, targetMonth)), 'json');
     }
 
@@ -319,6 +321,40 @@ function saveSystemSettingsData(settingsObj, key) {
 }
 
 /**
+ * 取得當前有效的安全管理金鑰（優先由 System_Settings 讀取，若無則使用預設值）
+ */
+function getValidSecretKey(ss) {
+  if (!ss) ss = getActiveSs();
+  if (!ss) return DEFAULT_SECRET_KEY;
+  try {
+    var sheet = ss.getSheetByName(SETTINGS_SHEET);
+    if (sheet) {
+      var lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        var values = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
+        for (var i = 0; i < values.length; i++) {
+          if (String(values[i][1] || '').trim() === 'secret_key') {
+            var val = values[i][2];
+            if (val !== null && val !== undefined && String(val).trim() !== '') {
+              return String(val).trim();
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {}
+  return DEFAULT_SECRET_KEY;
+}
+
+/**
+ * 驗證傳入的金鑰是否正確
+ */
+function verifyAuthKey(providedKey, ss) {
+  var validKey = getValidSecretKey(ss);
+  return (providedKey !== null && providedKey !== undefined && String(providedKey).trim() === validKey);
+}
+
+/**
  * 批次匯入課表資料（需驗證金鑰，伺服端直連）
  * 支援三種模式：
  * 1. 'smart_upsert' (預設推薦): 智慧更新涉及班級，其餘班級維持不變
@@ -326,14 +362,14 @@ function saveSystemSettingsData(settingsObj, key) {
  * 3. 'overwrite': 完全覆蓋全校課表 (執行前自動建立備份分頁)
  */
 function importTimetableData(rows, mode, key) {
-  if (key !== SECRET_KEY) {
-    return { status: "error", message: "未授權：安全金鑰錯誤或未填寫。" };
+  var ss = getActiveSs();
+  if (!verifyAuthKey(key, ss)) {
+    return { status: "error", message: "未授權：安全金鑰錯誤或未填寫。請在系統全域設定中輸入正確金鑰。" };
   }
   if (!rows || !Array.isArray(rows) || rows.length === 0) {
     return { status: "error", message: "匯入資料為空，請確認格式！" };
   }
   try {
-    var ss = getActiveSs();
     var sheet = ss.getSheetByName(TIMETABLE_SHEET);
     var TIMETABLE_HEADERS = ["班級(ClassName)", "星期(DayOfWeek)", "節次(Period)", "科目(Subject)", "授課教師(Teacher)"];
     
@@ -471,11 +507,11 @@ function getSystemSettings(ss) {
  * 儲存系統設定底層函式
  */
 function saveSystemSettings(settingsObj, key) {
-  if (key !== SECRET_KEY) {
-    return { status: "error", message: "未授權：安全金鑰錯誤或未填寫。" };
+  var ss = getActiveSs();
+  if (!verifyAuthKey(key, ss)) {
+    return { status: "error", message: "未授權：安全金鑰錯誤或未填寫。請輸入正確金鑰。" };
   }
   try {
-    var ss = getActiveSs();
     var sheet = ss.getSheetByName(SETTINGS_SHEET);
     if (!sheet) {
       getSystemSettings(ss);
@@ -520,10 +556,10 @@ function saveSystemSettings(settingsObj, key) {
  * 取得指定月份的代課紀錄（需驗證金鑰，伺服端直連）
  */
 function getMonthlyRecords(targetMonth, key) {
-  if (key !== SECRET_KEY) {
-    throw new Error("未授權：金鑰錯誤或未填寫。請至右上角齒輪設定填入正確金鑰。");
-  }
   var ss = getActiveSs();
+  if (!verifyAuthKey(key, ss)) {
+    throw new Error("未授權：金鑰錯誤或未填寫。請至系統全域設定或右上角鑰匙圖示中填入正確金鑰。");
+  }
   return buildRecordsForMonth(ss, targetMonth);
 }
 
@@ -531,10 +567,10 @@ function getMonthlyRecords(targetMonth, key) {
  * 取得所有歷史月份的代課紀錄（需驗證金鑰，伺服端直連）
  */
 function getAllRecordsData(key) {
-  if (key !== SECRET_KEY) {
-    throw new Error("未授權：金鑰錯誤或未填寫。請至右上角齒輪設定填入正確金鑰。");
-  }
   var ss = getActiveSs();
+  if (!verifyAuthKey(key, ss)) {
+    throw new Error("未授權：金鑰錯誤或未填寫。請至系統全域設定或右上角鑰匙圖示中填入正確金鑰。");
+  }
   var months = listDataMonths(ss);
   var allRecords = [];
   for (var n = 0; n < months.length; n++) {
@@ -550,7 +586,8 @@ function getAllRecordsData(key) {
  * 更新明細核銷確認狀態（需驗證金鑰，伺服端直連）
  */
 function confirmPeriodRecord(month, appId, period, key) {
-  if (key !== SECRET_KEY) {
+  var ss = getActiveSs();
+  if (!verifyAuthKey(key, ss)) {
     return { status: "error", message: "未授權：金鑰錯誤。" };
   }
   var ss = getActiveSs();
