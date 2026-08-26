@@ -1369,7 +1369,7 @@ input[type="checkbox"] {
 
       if (btnSelectAll) {
         btnSelectAll.addEventListener('click', () => {
-          document.querySelectorAll('.class-row .pay-trigger').forEach(cb => {
+          document.querySelectorAll('#schedule-tbody input[type="checkbox"]').forEach(cb => {
             cb.checked = true;
           });
           calculateCurrentFee();
@@ -1381,6 +1381,7 @@ input[type="checkbox"] {
           document.querySelectorAll('#schedule-tbody input[type="checkbox"]').forEach(cb => {
             cb.checked = false;
           });
+          chkMentorDaily.checked = false;
           calculateCurrentFee();
         });
       }
@@ -1388,7 +1389,15 @@ input[type="checkbox"] {
       document.querySelectorAll('#schedule-tbody input[type="checkbox"]').forEach(cb => {
         cb.addEventListener('change', calculateCurrentFee);
       });
-      chkMentorDaily.addEventListener('change', calculateCurrentFee);
+
+      // 勾選「整天代理」時，自動連動全選所有課表與作息項目；取消勾選時自動清除
+      chkMentorDaily.addEventListener('change', () => {
+        const isDaily = chkMentorDaily.checked;
+        document.querySelectorAll('#schedule-tbody input[type="checkbox"]').forEach(cb => {
+          cb.checked = isDaily;
+        });
+        calculateCurrentFee();
+      });
 
       // Settings Modal triggers
       btnOpenSettings.addEventListener('click', () => modal.style.display = 'flex');
