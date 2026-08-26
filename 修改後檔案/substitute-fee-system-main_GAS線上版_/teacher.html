@@ -1169,12 +1169,9 @@ input[type="checkbox"] {
         return Array.from(set).sort();
       }
 
-      // 動態更新請假教師下拉選單（依所選班級優先提取任課教師，並保留全校選單與手動輸入）
+      // 動態更新請假教師下拉選單（呈現全校教師清單與手動輸入選項，不分組釘選）
       function updateTeacherDropdown() {
-        const classVal = inputClass.value;
-        const classTeachers = getTeachersForClass(classVal);
         const allTeachers = getAllSchoolTeachers();
-        const otherTeachers = allTeachers.filter(t => !classTeachers.includes(t));
         const currentVal = getAbsentTeacherValue();
 
         selectAbsentTeacher.innerHTML = '';
@@ -1184,29 +1181,12 @@ input[type="checkbox"] {
         defaultOpt.textContent = '-- 請選擇請假教師 --';
         selectAbsentTeacher.appendChild(defaultOpt);
 
-        if (classTeachers.length > 0) {
-          const groupClass = document.createElement('optgroup');
-          groupClass.label = `📌 【${classVal}】任課教師`;
-          classTeachers.forEach(t => {
-            const opt = document.createElement('option');
-            opt.value = t;
-            opt.textContent = `${t} (${classVal}任課)`;
-            groupClass.appendChild(opt);
-          });
-          selectAbsentTeacher.appendChild(groupClass);
-        }
-
-        if (otherTeachers.length > 0) {
-          const groupOther = document.createElement('optgroup');
-          groupOther.label = '🏫 全校其他教師';
-          otherTeachers.forEach(t => {
-            const opt = document.createElement('option');
-            opt.value = t;
-            opt.textContent = t;
-            groupOther.appendChild(opt);
-          });
-          selectAbsentTeacher.appendChild(groupOther);
-        }
+        allTeachers.forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = t;
+          opt.textContent = t;
+          selectAbsentTeacher.appendChild(opt);
+        });
 
         // 手動輸入選項
         const customOpt = document.createElement('option');
@@ -1214,8 +1194,8 @@ input[type="checkbox"] {
         customOpt.textContent = '✏️ 手動輸入其他教師姓名...';
         selectAbsentTeacher.appendChild(customOpt);
 
-        // 僅在使用者已有選擇時才恢復選取，預設保持「-- 請選擇請假教師 --」，不自動預選任何教師
-        if (currentVal && (classTeachers.includes(currentVal) || otherTeachers.includes(currentVal))) {
+        // 僅在使用者已有選擇時才恢復選取，預設保持「-- 請選擇請假教師 --」
+        if (currentVal && allTeachers.includes(currentVal)) {
           selectAbsentTeacher.value = currentVal;
           inputAbsentTeacherCustom.style.display = 'none';
         } else if (currentVal && selectAbsentTeacher.value === '__custom__') {
