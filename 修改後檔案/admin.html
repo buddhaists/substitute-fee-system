@@ -723,17 +723,52 @@ header p {
           支援直接上傳 <strong>.csv</strong> 檔案，或由 Excel 表格框選後直接 <strong>Ctrl + V 複製貼上</strong>。匯入後將直接儲存至試算表的 <code>Class_Timetables</code> 分頁。
         </p>
 
-        <div class="form-group">
-          <label style="font-weight: 700; margin-bottom: 0.5rem; display: block;">匯入模式：</label>
-          <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
-            <label style="cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
-              <input type="radio" name="import-mode" value="overwrite" checked>
-              <strong>🔄 完全覆蓋現有課表</strong> (學期初更換全校課表首選)
+        <div class="form-group" style="background: #f8fafc; padding: 1.25rem; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 1.25rem;">
+          <label style="font-weight: 700; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; color: var(--primary-color);">
+            <i class="fa-solid fa-shield-halved"></i> 選擇匯入安全模式：
+          </label>
+          <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            
+            <!-- 模式 1: 智慧更新 (預設推薦) -->
+            <label style="cursor: pointer; display: flex; align-items: flex-start; gap: 0.6rem; background: white; padding: 0.75rem 1rem; border-radius: 8px; border: 2px solid #86efac; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+              <input type="radio" name="import-mode" value="smart_upsert" checked style="width: auto; margin-top: 0.25rem;">
+              <div>
+                <strong style="color: #166534; font-size: 0.95rem;">🟢 智慧更新班級 (預設推薦．日常調課首選)</strong>
+                <p style="font-size: 0.83rem; color: #4b5563; margin-top: 0.15rem;">
+                  系統自動依據您貼上的班級（如 101 班）進行替換更新，<strong>全校其餘班級課表完整保留</strong>，完全避免誤刪其他班級！
+                </p>
+              </div>
             </label>
-            <label style="cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
-              <input type="radio" name="import-mode" value="append">
-              <strong>➕ 增量追加紀錄</strong> (補登特定班級或調課)
+
+            <!-- 模式 2: 增量追加 -->
+            <label style="cursor: pointer; display: flex; align-items: flex-start; gap: 0.6rem; background: white; padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--border-color);">
+              <input type="radio" name="import-mode" value="append" style="width: auto; margin-top: 0.25rem;">
+              <div>
+                <strong style="color: #1e40af; font-size: 0.95rem;">➕ 增量追加紀錄</strong>
+                <p style="font-size: 0.83rem; color: #4b5563; margin-top: 0.15rem;">
+                  直接將資料附加在現有課表最末端（不刪除、不覆蓋任何既有資料）。
+                </p>
+              </div>
             </label>
+
+            <!-- 模式 3: 高風險折疊區 (Danger Zone) -->
+            <details style="margin-top: 0.25rem; border: 1px dashed #fca5a5; border-radius: 8px; background: #fff5f5; padding: 0.6rem 0.85rem;">
+              <summary style="cursor: pointer; font-size: 0.85rem; font-weight: 700; color: #dc2626; display: flex; align-items: center; gap: 0.4rem;">
+                <i class="fa-solid fa-triangle-exclamation"></i> 展開高風險進階操作（僅限學期初全校課表大換新）
+              </summary>
+              <div style="margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid #fecaca;">
+                <label style="cursor: pointer; display: flex; align-items: flex-start; gap: 0.6rem;">
+                  <input type="radio" name="import-mode" value="overwrite" style="width: auto; margin-top: 0.25rem;">
+                  <div>
+                    <strong style="color: #dc2626; font-size: 0.92rem;">🔴 完全清空並覆蓋全校課表</strong>
+                    <p style="font-size: 0.82rem; color: #991b1b; margin-top: 0.15rem;">
+                      ⚠️ <strong>警告：</strong>此操作將移除 Class_Timetables 中既有的所有班級課表！（執行前系統會自動建立備份分頁，並要求輸入確認驗證文字）
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </details>
+
           </div>
         </div>
 
@@ -861,6 +896,38 @@ header p {
         <div class="modal-buttons">
           <button class="btn btn-secondary" id="btn-close-settings">取消</button>
           <button class="btn btn-primary" id="btn-save-settings">儲存設定</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- OVERWRITE CONFIRMATION MODAL (Type-to-Confirm 防呆驗證) -->
+    <div class="modal-overlay" id="danger-confirm-modal">
+      <div class="modal" style="border-top: 6px solid #dc2626; max-width: 480px;">
+        <div class="modal-title" style="color: #dc2626; border-bottom: 1px solid #fee2e2; padding-bottom: 0.5rem;">
+          <i class="fa-solid fa-triangle-exclamation"></i> 高風險操作：確認清空全校課表？
+        </div>
+        
+        <p style="font-size: 0.92rem; color: #374151; line-height: 1.6; margin-bottom: 0.75rem; margin-top: 0.5rem;">
+          您選擇了<strong>「完全清空並覆蓋全校課表」</strong>。<br>
+          執行後，現有 <code>Class_Timetables</code> 中的所有既有班級課表將被清空，並覆蓋為即將匯入的 <strong id="danger-import-count" style="color:#dc2626;">0</strong> 筆資料。
+        </p>
+
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 0.6rem 0.75rem; border-radius: 6px; font-size: 0.85rem; color: #166534; margin-bottom: 1rem;">
+          <i class="fa-solid fa-shield-halved"></i> <strong>自動備份保護：</strong>後端在清空前會自動建立 <code>課表備份_YYYYMMDD_HHMMSS</code> 備份分頁。
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label for="input-danger-confirm-text" style="color: #991b1b; font-weight: 700; font-size: 0.9rem;">
+            為防止誤觸，請在下方框中輸入「<span style="color:#dc2626; font-size:1rem; font-weight:900;">確認清空</span>」以解鎖按鈕：
+          </label>
+          <input type="text" id="input-danger-confirm-text" placeholder="請在此輸入「確認清空」" style="border: 2px solid #fca5a5; font-weight: bold; font-size: 1rem; padding: 0.6rem 0.75rem;">
+        </div>
+
+        <div class="modal-buttons">
+          <button class="btn btn-secondary" id="btn-cancel-danger">取消放棄</button>
+          <button class="btn btn-danger" id="btn-execute-danger-overwrite" disabled style="opacity: 0.5; cursor: not-allowed;">
+            <i class="fa-solid fa-trash-can"></i> 確認完全覆蓋
+          </button>
         </div>
       </div>
     </div>
@@ -1286,8 +1353,32 @@ header p {
 
       btnParsePreview.addEventListener('click', parseAndPreviewImport);
 
-      // 執行課表寫入
-      btnConfirmImport.addEventListener('click', () => {
+      // Danger Modal Elements (防呆輸入驗證)
+      const dangerModal = document.getElementById('danger-confirm-modal');
+      const btnCancelDanger = document.getElementById('btn-cancel-danger');
+      const btnExecuteDangerOverwrite = document.getElementById('btn-execute-danger-overwrite');
+      const inputDangerConfirmText = document.getElementById('input-danger-confirm-text');
+      const dangerImportCount = document.getElementById('danger-import-count');
+
+      btnCancelDanger.addEventListener('click', () => {
+        dangerModal.style.display = 'none';
+        inputDangerConfirmText.value = '';
+      });
+
+      inputDangerConfirmText.addEventListener('input', () => {
+        if (inputDangerConfirmText.value.trim() === '確認清空') {
+          btnExecuteDangerOverwrite.disabled = false;
+          btnExecuteDangerOverwrite.style.opacity = '1';
+          btnExecuteDangerOverwrite.style.cursor = 'pointer';
+        } else {
+          btnExecuteDangerOverwrite.disabled = true;
+          btnExecuteDangerOverwrite.style.opacity = '0.5';
+          btnExecuteDangerOverwrite.style.cursor = 'not-allowed';
+        }
+      });
+
+      // 核心匯入執行函式
+      function executeTimetableImport(mode) {
         const key = localStorage.getItem('gas_secret_key') || '';
         if (!key) {
           alert('⚠️ 請先點選右上角鑰匙設定，輸入安全金鑰 (SECRET_KEY)！');
@@ -1295,26 +1386,20 @@ header p {
           return;
         }
 
-        if (parsedImportRows.length === 0) {
-          alert('無有效資料可匯入！');
-          return;
-        }
-
-        const mode = document.querySelector('input[name="import-mode"]:checked').value;
-        const confirmMsg = mode === 'overwrite'
-          ? `確定要「完全覆蓋」目前全校課表嗎？（共 ${parsedImportRows.length} 筆）`
-          : `確定要「追加」${parsedImportRows.length} 筆課表資料嗎？`;
-
-        if (!confirm(confirmMsg)) return;
-
         btnConfirmImport.disabled = true;
         btnConfirmImport.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 寫入中...';
+        btnExecuteDangerOverwrite.disabled = true;
+        btnExecuteDangerOverwrite.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 寫入中...';
 
         if (isGasEnv) {
           google.script.run
             .withSuccessHandler((res) => {
               btnConfirmImport.disabled = false;
               btnConfirmImport.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 寫入 Google 試算表課表';
+              btnExecuteDangerOverwrite.innerHTML = '<i class="fa-solid fa-trash-can"></i> 確認完全覆蓋';
+              dangerModal.style.display = 'none';
+              inputDangerConfirmText.value = '';
+
               if (res && res.status === 'success') {
                 alert(`🎉 ${res.message}`);
                 textareaImportText.value = '';
@@ -1328,10 +1413,51 @@ header p {
             .withFailureHandler((err) => {
               btnConfirmImport.disabled = false;
               btnConfirmImport.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 寫入 Google 試算表課表';
+              btnExecuteDangerOverwrite.innerHTML = '<i class="fa-solid fa-trash-can"></i> 確認完全覆蓋';
+              dangerModal.style.display = 'none';
               alert('❌ 匯入失敗：' + err.message);
             })
             .importTimetableData(parsedImportRows, mode, key);
         }
+      }
+
+      btnExecuteDangerOverwrite.addEventListener('click', () => {
+        executeTimetableImport('overwrite');
+      });
+
+      // 點擊「寫入 Google 試算表課表」按鈕觸發判斷
+      btnConfirmImport.addEventListener('click', () => {
+        if (parsedImportRows.length === 0) {
+          alert('無有效資料可匯入！請先貼上資料並點擊「預覽解析資料」。');
+          return;
+        }
+
+        const modeRadio = document.querySelector('input[name="import-mode"]:checked');
+        const mode = modeRadio ? modeRadio.value : 'smart_upsert';
+
+        if (mode === 'overwrite') {
+          // 觸發二次輸入驗證防呆彈窗
+          dangerImportCount.textContent = `${parsedImportRows.length}`;
+          inputDangerConfirmText.value = '';
+          btnExecuteDangerOverwrite.disabled = true;
+          btnExecuteDangerOverwrite.style.opacity = '0.5';
+          btnExecuteDangerOverwrite.style.cursor = 'not-allowed';
+          dangerModal.style.display = 'flex';
+          return;
+        }
+
+        if (mode === 'smart_upsert') {
+          const distinctClasses = [...new Set(parsedImportRows.map(r => r[0]))].join('、');
+          if (!confirm(`【智慧更新確認】\n\n系統將為您更新「${distinctClasses}」班級之課表（共 ${parsedImportRows.length} 節），其餘班級課表完整保留。\n\n確定執行嗎？`)) {
+            return;
+          }
+        } else if (mode === 'append') {
+          if (!confirm(`【增量追加確認】\n\n系統將直接追加 ${parsedImportRows.length} 筆紀錄至課表末端。\n\n確定執行嗎？`)) {
+            return;
+          }
+        }
+
+        executeTimetableImport(mode);
       });
 
       // 課表檢視器邏輯

@@ -320,6 +320,10 @@ function saveSystemSettingsData(settingsObj, key) {
 
 /**
  * 批次匯入課表資料（需驗證金鑰，伺服端直連）
+ * 支援三種模式：
+ * 1. 'smart_upsert' (預設推薦): 智慧更新涉及班級，其餘班級維持不變
+ * 2. 'append': 增量追加新紀錄
+ * 3. 'overwrite': 完全覆蓋全校課表 (執行前自動建立備份分頁)
  */
 function importTimetableData(rows, mode, key) {
   if (key !== SECRET_KEY) {
@@ -339,14 +343,8 @@ function importTimetableData(rows, mode, key) {
       sheet.setFrozenRows(1);
     }
 
-    if (mode === 'overwrite') {
-      var lastRow = sheet.getLastRow();
-      if (lastRow > 1) {
-        sheet.getRange(2, 1, lastRow - 1, 5).clearContent();
-      }
-    }
-
     var dataToWrite = [];
+    var incomingClassesMap = {};
     for (var i = 0; i < rows.length; i++) {
       var r = rows[i];
       var cls = String(r[0] !== null && r[0] !== undefined ? r[0] : '').trim();
@@ -357,19 +355,76 @@ function importTimetableData(rows, mode, key) {
 
       if (!cls || isNaN(day) || isNaN(period)) continue;
       dataToWrite.push([cls, day, period, subject, teacher]);
+      incomingClassesMap[cls] = true;
     }
 
     if (dataToWrite.length === 0) {
       return { status: "error", message: "沒有合法的課表資料（請檢查是否有包含班級、星期1~5、節次1~7）！" };
     }
 
-    var startRow = (mode === 'overwrite') ? 2 : (sheet.getLastRow() + 1);
-    sheet.getRange(startRow, 1, dataToWrite.length, 5).setValues(dataToWrite);
+    var incomingClassesList = Object.keys(incomingClassesMap);
+    var responseMessage = "";
+
+    if (mode === 'overwrite') {
+      // 模式 3: 完全覆蓋全校課表 (高風險操作，自動建立備份分頁)
+      var oldLastRow = sheet.getLastRow();
+      var backupSheetName = "";
+      if (oldLastRow > 1) {
+        try {
+          var dateStr = Utilities.formatDate(new Date(), "Asia/Taipei", "yyyyMMdd_HHmmss");
+          backupSheetName = "課表備份_" + dateStr;
+          var backupSheet = ss.insertSheet(backupSheetName);
+          var oldValues = sheet.getRange(1, 1, oldLastRow, 5).getValues();
+          backupSheet.getRange(1, 1, oldValues.length, 5).setValues(oldValues);
+          backupSheet.setFrozenRows(1);
+        } catch (bErr) {
+          console.log("自動備份分頁略過: " + bErr);
+        }
+        sheet.getRange(2, 1, oldLastRow - 1, 5).clearContent();
+      }
+
+      sheet.getRange(2, 1, dataToWrite.length, 5).setValues(dataToWrite);
+      responseMessage = "【全校覆蓋成功】已完全覆蓋全校課表，共寫入 " + dataToWrite.length + " 筆！" +
+        (backupSheetName ? "（原課表已自動安全備份至「" + backupSheetName + "」分頁）" : "");
+
+    } else if (mode === 'append') {
+      // 模式 2: 純增量追加
+      var startRow = sheet.getLastRow() + 1;
+      sheet.getRange(startRow, 1, dataToWrite.length, 5).setValues(dataToWrite);
+      responseMessage = "【增量追加成功】已成功追加 " + dataToWrite.length + " 筆課表紀錄！";
+
+    } else {
+      // 模式 1 (預設): 智慧班級更新 (Smart Upsert)
+      // 讀取既有資料，只清除本次有出現的班級，其餘班級保留
+      var currentLastRow = sheet.getLastRow();
+      var retainedRows = [];
+      if (currentLastRow > 1) {
+        var currentValues = sheet.getRange(2, 1, currentLastRow - 1, 5).getValues();
+        for (var k = 0; k < currentValues.length; k++) {
+          var existCls = String(currentValues[k][0] || '').trim();
+          if (existCls && !incomingClassesMap[existCls]) {
+            retainedRows.push(currentValues[k]);
+          }
+        }
+      }
+
+      var finalData = retainedRows.concat(dataToWrite);
+
+      // 清空舊內容並一次寫入整併後的完整課表
+      if (currentLastRow > 1) {
+        sheet.getRange(2, 1, currentLastRow - 1, 5).clearContent();
+      }
+      sheet.getRange(2, 1, finalData.length, 5).setValues(finalData);
+
+      responseMessage = "【智慧更新成功】已更新「" + incomingClassesList.join("、") + "」等 " +
+        incomingClassesList.length + " 個班級課表（共 " + dataToWrite.length + " 節），其餘班級完整保留！目前全校共 " +
+        finalData.length + " 節課。";
+    }
 
     return {
       status: "success",
       count: dataToWrite.length,
-      message: "成功寫入 " + dataToWrite.length + " 筆課表紀錄！",
+      message: responseMessage,
       timetable: buildTimetable(ss)
     };
   } catch (err) {
