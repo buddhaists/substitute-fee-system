@@ -887,7 +887,7 @@ input[type="checkbox"] {
             </div>
 
             <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; font-weight: 600; cursor: pointer; background: #f0fdf4; border: 1px dashed #bbf7d0; padding: 0.6rem 0.75rem; border-radius: 8px; color: #166534;">
-              <input type="checkbox" id="chk-mentor-daily">
+              <input type="checkbox" id="chk-mentor-daily" onchange="toggleMentorDaily(this.checked)">
               <span><i class="fa-solid fa-user-clock"></i> 整天代理（改領導師費，金額後臺自行計算）</span>
             </label>
 
@@ -1006,14 +1006,22 @@ input[type="checkbox"] {
 
   <!-- Javascript Logic for Teacher Page -->
   <script>
+    const isGasEnv = typeof google !== 'undefined' && typeof google.script !== 'undefined' && typeof google.script.run !== 'undefined';
+    const SERVER_SYSTEM_SETTINGS = <?!= (typeof systemSettings !== 'undefined' && systemSettings) ? JSON.stringify(systemSettings) : '{}' ?>;
+    const SERVER_TIMETABLE = <?!= (typeof serverTimetable !== 'undefined' && serverTimetable) ? JSON.stringify(serverTimetable) : '{}' ?>;
+
     function navTo(page) {
-      let baseUrl = window.location.href.split('?')[0];
-      let target = page ? `${baseUrl}?page=${page}` : baseUrl;
-      if (window.top) {
-        window.top.location.href = target;
-      } else {
-        window.location.href = target;
-      }
+      var serverUrl = "<?= appUrl ?>";
+      var baseUrl = (serverUrl && serverUrl.indexOf('http') === 0) ? serverUrl.split('?')[0] : window.location.href.split('?')[0];
+      baseUrl = baseUrl.replace(/\/userCodeAppPanel$/, '');
+      var target = page ? (baseUrl + '?page=' + page) : baseUrl;
+      try {
+        if (window.top && window.top.location) {
+          window.top.location.href = target;
+          return;
+        }
+      } catch (e) {}
+      window.location.href = target;
     }
 
     // 預設內建課表資料庫（若雲端課表連線成功會自動覆蓋更新）
@@ -1112,6 +1120,16 @@ input[type="checkbox"] {
       if (inputEndDate) inputEndDate.value = lastWorkingDateStr;
       if (typeof updateMultiDaySummary === 'function') {
         updateMultiDaySummary();
+      }
+    };
+
+    // 全域整天代理勾選/取消連動全選函式
+    window.toggleMentorDaily = function(isDaily) {
+      document.querySelectorAll('#schedule-tbody input[type="checkbox"]').forEach(cb => {
+        cb.checked = isDaily;
+      });
+      if (typeof calculateCurrentFee === 'function') {
+        calculateCurrentFee();
       }
     };
 
