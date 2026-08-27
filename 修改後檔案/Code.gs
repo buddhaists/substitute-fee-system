@@ -936,6 +936,159 @@ function batchUpdateRecordStatus(targetMonth, appIds, newStatus, key) {
   }
 }
 
+/**
+ * 刪除單筆代課紀錄（同步自總表與明細分頁中清除）
+ */
+function deleteMonthlyRecord(targetMonth, appId, key) {
+  return batchDeleteMonthlyRecords(targetMonth, [appId], key);
+}
+
+/**
+ * 批次刪除指定代課紀錄（需驗證金鑰，伺服端直連）
+ */
+function batchDeleteMonthlyRecords(targetMonth, appIds, key) {
+  var ss = getActiveSs();
+  if (!verifyAuthKey(key, ss)) {
+    return { status: "error", message: "未授權：安全金鑰錯誤。" };
+  }
+  if (!appIds || !Array.isArray(appIds) || appIds.length === 0) {
+    return { status: "error", message: "請指定要刪除的代課單號！" };
+  }
+  try {
+    var summarySheet = ss.getSheetByName(targetMonth + "_總表");
+    var detailSheet = ss.getSheetByName(targetMonth + "_明細");
+    var deletedCount = 0;
+
+    // 1. 從總表中由下往上刪除對應列
+    if (summarySheet) {
+      var sumLastRow = summarySheet.getLastRow();
+      if (sumLastRow > 1) {
+        var sumValues = summarySheet.getRange(2, 1, sumLastRow - 1, 1).getValues();
+        for (var i = sumValues.length - 1; i >= 0; i--) {
+          var id = String(sumValues[i][0] || '').trim();
+          if (appIds.indexOf(id) !== -1) {
+            summarySheet.deleteRow(i + 2);
+            deletedCount++;
+          }
+        }
+      }
+    }
+
+    // 2. 從明細表中由下往上刪除對應列
+    if (detailSheet) {
+      var detLastRow = detailSheet.getLastRow();
+      if (detLastRow > 1) {
+        var detValues = detailSheet.getRange(2, 1, detLastRow - 1, 1).getValues();
+        for (var j = detValues.length - 1; j >= 0; j--) {
+          var did = String(detValues[j][0] || '').trim();
+          if (appIds.indexOf(did) !== -1) {
+            detailSheet.deleteRow(j + 2);
+          }
+        }
+      }
+    }
+
+    return {
+      status: "success",
+      message: "🎉 已成功刪除 " + deletedCount + " 筆代課單資料！",
+      records: buildRecordsForMonth(ss, targetMonth)
+    };
+  } catch (err) {
+    return { status: "error", message: "刪除失敗：" + err.toString() };
+  }
+}
+
+/**
+ * 線上修改單筆代課紀錄（同步更新總表與明細）
+ */
+function updateMonthlyRecord(targetMonth, appId, updatedData, key) {
+  var ss = getActiveSs();
+  if (!verifyAuthKey(key, ss)) {
+    return { status: "error", message: "未授權：安全金鑰錯誤。" };
+  }
+  if (!appId || !updatedData) {
+    return { status: "error", message: "缺少更新資料或單號！" };
+  }
+  try {
+    var summarySheet = ss.getSheetByName(targetMonth + "_總表");
+    var detailSheet = ss.getSheetByName(targetMonth + "_明細");
+    if (!summarySheet) {
+      return { status: "error", message: "找不到該月份的總表！" };
+    }
+
+    var sumLastRow = summarySheet.getLastRow();
+    if (sumLastRow <= 1) {
+      return { status: "error", message: "總表尚無資料！" };
+    }
+
+    var sumValues = summarySheet.getRange(2, 1, sumLastRow - 1, SUMMARY_HEADERS.length).getValues();
+    var targetRowIndex = -1;
+    for (var i = 0; i < sumValues.length; i++) {
+      if (String(sumValues[i][0] || '').trim() === String(appId).trim()) {
+        targetRowIndex = i + 2;
+        break;
+      }
+    }
+
+    if (targetRowIndex === -1) {
+      return { status: "error", message: "在總表中找不到單號 " + appId };
+    }
+
+    var date = updatedData.date;
+    var absentTeacher = updatedData.absentTeacher || '';
+    var subTeacher = updatedData.subTeacher || '';
+    var className = updatedData.className || '';
+    var leaveType = updatedData.leaveType || '';
+    var periodsCount = Number(updatedData.periodsCount) || 0;
+    var rate = Number(updatedData.rate) || 405;
+    var classFee = Number(updatedData.classFee) || (periodsCount * rate);
+    var mentorFee = Number(updatedData.mentorFee) || 0;
+    var totalFee = Number(updatedData.totalFee) || (classFee + mentorFee);
+    var payMode = updatedData.payMode || 'perPeriod';
+    var payNote = updatedData.payNote || '';
+    var isActingMentor = (payMode === 'mentorDaily' || mentorFee > 0);
+
+    // 更新總表
+    if (date) summarySheet.getRange(targetRowIndex, 3).setValue(date);
+    summarySheet.getRange(targetRowIndex, 6).setValue(absentTeacher);
+    summarySheet.getRange(targetRowIndex, 7).setValue(subTeacher);
+    summarySheet.getRange(targetRowIndex, 8).setValue(className);
+    summarySheet.getRange(targetRowIndex, 9).setValue(leaveType);
+    summarySheet.getRange(targetRowIndex, 10).setValue(periodsCount);
+    summarySheet.getRange(targetRowIndex, 11).setValue(rate);
+    summarySheet.getRange(targetRowIndex, 12).setValue(classFee);
+    summarySheet.getRange(targetRowIndex, 13).setValue(isActingMentor ? "是" : "否");
+    summarySheet.getRange(targetRowIndex, 15).setValue(mentorFee);
+    summarySheet.getRange(targetRowIndex, 16).setValue(totalFee);
+    summarySheet.getRange(targetRowIndex, 17).setValue(payMode);
+    summarySheet.getRange(targetRowIndex, 18).setValue(payNote);
+
+    // 同步更新明細表
+    if (detailSheet) {
+      var detLastRow = detailSheet.getLastRow();
+      if (detLastRow > 1) {
+        var detValues = detailSheet.getRange(2, 1, detLastRow - 1, DETAIL_HEADERS.length).getValues();
+        for (var j = 0; j < detValues.length; j++) {
+          if (String(detValues[j][0] || '').trim() === String(appId).trim()) {
+            var detRowNum = j + 2;
+            if (date) detailSheet.getRange(detRowNum, 2).setValue(date);
+            if (className) detailSheet.getRange(detRowNum, 3).setValue(className);
+            if (subTeacher) detailSheet.getRange(detRowNum, 6).setValue(subTeacher);
+          }
+        }
+      }
+    }
+
+    return {
+      status: "success",
+      message: "🎉 代課單 " + appId + " 已成功更新！",
+      records: buildRecordsForMonth(ss, targetMonth)
+    };
+  } catch (err) {
+    return { status: "error", message: "更新失敗：" + err.toString() };
+  }
+}
+
 function formatDate(dateVal) {
   if (dateVal instanceof Date) {
     return dateVal.getFullYear() + "-" +

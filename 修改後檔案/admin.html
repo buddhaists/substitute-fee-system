@@ -712,12 +712,15 @@ header p {
                 <button type="button" class="btn btn-outline filter-chip" data-status-filter="confirmed" style="font-size: 0.75rem; padding: 0.15rem 0.55rem; border-radius: 9999px;">✅ 已核銷</button>
               </div>
             </div>
-            <div style="display: flex; gap: 0.4rem;">
+            <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
               <button type="button" class="btn btn-outline" id="btn-batch-confirm" style="font-size: 0.78rem; padding: 0.25rem 0.6rem; color: #16a34a; border-color: #86efac; background: white;">
                 <i class="fa-solid fa-circle-check"></i> 標記為已核銷
               </button>
               <button type="button" class="btn btn-outline" id="btn-batch-unconfirm" style="font-size: 0.78rem; padding: 0.25rem 0.6rem; color: #64748b; border-color: #cbd5e1; background: white;">
                 <i class="fa-solid fa-clock-rotate-left"></i> 標記為待核對
+              </button>
+              <button type="button" class="btn btn-outline" id="btn-batch-delete" style="font-size: 0.78rem; padding: 0.25rem 0.6rem; color: #dc2626; border-color: #fca5a5; background: white;">
+                <i class="fa-solid fa-trash-can"></i> 批次刪除
               </button>
             </div>
           </div>
@@ -734,11 +737,12 @@ header p {
                   <th style="text-align: center;">節數</th>
                   <th style="text-align: right;">金額</th>
                   <th style="text-align: center;">狀態</th>
+                  <th style="text-align: center; width: 120px;">操作</th>
                 </tr>
               </thead>
               <tbody id="detail-tbody">
                 <tr>
-                  <td colspan="8" style="text-align: center; color: var(--text-light); padding: 2rem;">無代課明細紀錄</td>
+                  <td colspan="9" style="text-align: center; color: var(--text-light); padding: 2rem;">無代課明細紀錄</td>
                 </tr>
               </tbody>
             </table>
@@ -1129,6 +1133,105 @@ header p {
       </div>
     </div>
 
+    <!-- EDIT RECORD MODAL (線上修改代課單) -->
+    <div class="modal-overlay" id="edit-record-modal">
+      <div class="modal" style="max-width: 580px; width: 95%; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-title" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.6rem;">
+          <span><i class="fa-solid fa-pen-to-square"></i> 線上編輯代課交接單</span>
+          <button type="button" class="btn btn-outline" id="btn-close-edit-modal" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <input type="hidden" id="edit-app-id">
+
+        <div style="background: #f8fafc; padding: 0.5rem 0.75rem; border-radius: 6px; margin: 0.75rem 0; font-size: 0.85rem; color: #475569; display: flex; justify-content: space-between;">
+          <span>申請單號：<strong id="edit-display-id" style="color: var(--primary-color);">SUB-XXXX</strong></span>
+          <span id="edit-display-mode" style="font-weight: 600; color: #0284c7;">一般鐘點計費</span>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="edit-date"><i class="fa-solid fa-calendar-day"></i> 代課日期</label>
+            <input type="date" id="edit-date" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-class"><i class="fa-solid fa-chalkboard-user"></i> 班級</label>
+            <input type="text" id="edit-class" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="edit-absent-teacher"><i class="fa-solid fa-user-xmark"></i> 請假教師</label>
+            <input type="text" id="edit-absent-teacher" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-sub-teacher"><i class="fa-solid fa-user-check"></i> 代課教師</label>
+            <input type="text" id="edit-sub-teacher" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="edit-leave-type"><i class="fa-solid fa-tag"></i> 請假假別</label>
+            <select id="edit-leave-type">
+              <option value="病假">病假</option>
+              <option value="事假">事假</option>
+              <option value="公假">公假</option>
+              <option value="公差假">公差假</option>
+              <option value="喪假">喪假</option>
+              <option value="婚假">婚假</option>
+              <option value="產假/產檢假">產假/產檢假</option>
+              <option value="休假">休假</option>
+              <option value="其他">其他</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="edit-pay-mode"><i class="fa-solid fa-money-check"></i> 計費模式</label>
+            <select id="edit-pay-mode">
+              <option value="perPeriod">鐘點費模式 (節數 × 費率)</option>
+              <option value="mentorDaily">整天代理導師 (改領日薪/加給)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="edit-periods"><i class="fa-solid fa-clock"></i> 代課節數</label>
+            <input type="number" id="edit-periods" min="0" max="10" step="1">
+          </div>
+          <div class="form-group">
+            <label for="edit-rate"><i class="fa-solid fa-dollar-sign"></i> 單節費率 (元)</label>
+            <input type="number" id="edit-rate" min="0" step="1">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="edit-mentor-fee"><i class="fa-solid fa-hand-holding-dollar"></i> 導師加給 (元)</label>
+            <input type="number" id="edit-mentor-fee" min="0" step="1" style="color: #ea580c; font-weight: 700;">
+          </div>
+          <div class="form-group">
+            <label for="edit-total-fee"><i class="fa-solid fa-calculator"></i> 應領總額 (元)</label>
+            <input type="number" id="edit-total-fee" min="0" step="1" style="font-weight: bold; color: var(--primary-color); background: #f0fdf4;">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="edit-pay-note">備註說明</label>
+          <input type="text" id="edit-pay-note" placeholder="例如：整天代理(導師費)">
+        </div>
+
+        <div class="modal-buttons">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-edit">取消</button>
+          <button type="button" class="btn btn-primary" id="btn-save-edit-record" style="padding: 0.5rem 1.5rem;">
+            <i class="fa-solid fa-floppy-disk"></i> 儲存修改
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- Javascript Logic for Admin Page -->
@@ -1507,10 +1610,33 @@ header p {
                 ${statusText === '已核銷' ? '<i class="fa-solid fa-check"></i> 已核銷' : '<i class="fa-regular fa-clock"></i> 待核對'}
               </span>
             </td>
+            <td style="text-align: center; white-space: nowrap;">
+              <button type="button" class="btn btn-outline btn-edit-record" data-id="${rec.id}" title="線上編輯修改此筆代課單" style="padding: 0.15rem 0.45rem; font-size: 0.75rem; color: #0284c7; border-color: #bae6fd; margin-right: 0.2rem;">
+                <i class="fa-solid fa-pen-to-square"></i> 編輯
+              </button>
+              <button type="button" class="btn btn-outline btn-delete-record" data-id="${rec.id}" title="刪除此筆代課紀錄" style="padding: 0.15rem 0.45rem; font-size: 0.75rem; color: #dc2626; border-color: #fecaca;">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </td>
           `;
           frag.appendChild(tr);
         });
         detailTbody.appendChild(frag);
+
+        // 綁定動態生成的編輯與刪除按鈕
+        document.querySelectorAll('.btn-edit-record').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-id');
+            openEditModal(id);
+          });
+        });
+
+        document.querySelectorAll('.btn-delete-record').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-id');
+            executeDelete([id]);
+          });
+        });
       }
 
       // 明細搜尋防抖 (150ms Debounce)
@@ -1535,6 +1661,183 @@ header p {
       chkAllDetails.addEventListener('change', () => {
         const isChecked = chkAllDetails.checked;
         document.querySelectorAll('.chk-detail-item').forEach(cb => cb.checked = isChecked);
+      });
+
+      // 單筆與批次刪除函式
+      function executeDelete(appIds) {
+        if (!appIds || appIds.length === 0) return;
+        const msg = appIds.length === 1
+          ? `確定要刪除代課單【${appIds[0]}】嗎？\n此操作將同步自 Google 試算表的總表與明細中徹底移除。`
+          : `確定要批次刪除選取的 ${appIds.length} 筆代課單嗎？\n此操作將同步自 Google 試算表中清除。`;
+        if (!confirm(msg)) return;
+
+        const targetMonth = selectMonth.value;
+        const key = localStorage.getItem('gas_secret_key') || '087525402';
+
+        if (isGasEnv) {
+          google.script.run
+            .withSuccessHandler((res) => {
+              if (res && res.status === 'success') {
+                alert(res.message);
+                if (res.records) {
+                  allRecords = res.records;
+                  localStorage.setItem('admin_records_cache', JSON.stringify(allRecords));
+                  renderDashboard();
+                }
+              } else {
+                alert('❌ 刪除失敗：' + (res ? res.message : '未知錯誤'));
+              }
+            })
+            .withFailureHandler((err) => {
+              alert('❌ 刪除發生錯誤：' + err.message);
+            })
+            .batchDeleteMonthlyRecords(targetMonth, appIds, key);
+        } else {
+          allRecords = allRecords.filter(r => !appIds.includes(r.id));
+          renderDashboard();
+          alert(`本機測試：已成功刪除 ${appIds.length} 筆紀錄！`);
+        }
+      }
+
+      const btnBatchDelete = document.getElementById('btn-batch-delete');
+      if (btnBatchDelete) {
+        btnBatchDelete.addEventListener('click', () => {
+          const checkedBoxes = Array.from(document.querySelectorAll('.chk-detail-item:checked'));
+          if (checkedBoxes.length === 0) {
+            alert('請先勾選要刪除的明細紀錄！');
+            return;
+          }
+          const appIds = checkedBoxes.map(cb => cb.value);
+          executeDelete(appIds);
+        });
+      }
+
+      // =============================================================
+      // 線上修改代課單 (Edit Record Modal Logic)
+      // =============================================================
+      const editRecordModal = document.getElementById('edit-record-modal');
+      const btnCloseEditModal = document.getElementById('btn-close-edit-modal');
+      const btnCancelEdit = document.getElementById('btn-cancel-edit');
+      const btnSaveEditRecord = document.getElementById('btn-save-edit-record');
+      const editAppId = document.getElementById('edit-app-id');
+      const editDisplayId = document.getElementById('edit-display-id');
+      const editDisplayMode = document.getElementById('edit-display-mode');
+      const editDate = document.getElementById('edit-date');
+      const editClass = document.getElementById('edit-class');
+      const editAbsentTeacher = document.getElementById('edit-absent-teacher');
+      const editSubTeacher = document.getElementById('edit-sub-teacher');
+      const editLeaveType = document.getElementById('edit-leave-type');
+      const editPayMode = document.getElementById('edit-pay-mode');
+      const editPeriods = document.getElementById('edit-periods');
+      const editRate = document.getElementById('edit-rate');
+      const editMentorFee = document.getElementById('edit-mentor-fee');
+      const editTotalFee = document.getElementById('edit-total-fee');
+      const editPayNote = document.getElementById('edit-pay-note');
+
+      function calculateEditFee() {
+        const p = Number(editPeriods.value) || 0;
+        const r = Number(editRate.value) || 405;
+        const isDaily = editPayMode.value === 'mentorDaily';
+        const classFee = isDaily ? 0 : p * r;
+        const mentorFee = Number(editMentorFee.value) || 0;
+        const total = classFee + mentorFee;
+        editTotalFee.value = total;
+      }
+
+      editPeriods.addEventListener('input', calculateEditFee);
+      editRate.addEventListener('input', calculateEditFee);
+      editMentorFee.addEventListener('input', calculateEditFee);
+      editPayMode.addEventListener('change', () => {
+        const isDaily = editPayMode.value === 'mentorDaily';
+        editDisplayMode.textContent = isDaily ? '整天代理導師費' : '一般鐘點計費';
+        if (isDaily && (!editMentorFee.value || Number(editMentorFee.value) === 0)) {
+          editMentorFee.value = Number(cfgMentorRate.value) || 1528;
+        }
+        calculateEditFee();
+      });
+
+      function openEditModal(recId) {
+        const rec = allRecords.find(r => r.id === recId);
+        if (!rec) return;
+
+        editAppId.value = rec.id;
+        editDisplayId.textContent = rec.id;
+        editDate.value = rec.date || '';
+        editClass.value = rec.className || '';
+        editAbsentTeacher.value = rec.absentTeacher || '';
+        editSubTeacher.value = rec.subTeacher || '';
+        editLeaveType.value = rec.leaveType || '病假';
+        editPayMode.value = rec.payMode || (rec.isActingMentor ? 'mentorDaily' : 'perPeriod');
+        editPeriods.value = Number(rec.periodsCount) || 0;
+        editRate.value = Number(rec.rate) || 405;
+        editMentorFee.value = Number(rec.mentorFee) || 0;
+        editTotalFee.value = Number(rec.totalFee) || (Number(rec.classFee) || 0) + (Number(rec.mentorFee) || 0);
+        editPayNote.value = rec.payNote || '';
+        editDisplayMode.textContent = editPayMode.value === 'mentorDaily' ? '整天代理導師費' : '一般鐘點計費';
+
+        editRecordModal.style.display = 'flex';
+      }
+
+      btnCloseEditModal.addEventListener('click', () => editRecordModal.style.display = 'none');
+      btnCancelEdit.addEventListener('click', () => editRecordModal.style.display = 'none');
+
+      btnSaveEditRecord.addEventListener('click', () => {
+        const appId = editAppId.value;
+        const targetMonth = selectMonth.value;
+        const key = localStorage.getItem('gas_secret_key') || '087525402';
+
+        const updatedData = {
+          date: editDate.value,
+          className: editClass.value.trim(),
+          absentTeacher: editAbsentTeacher.value.trim(),
+          subTeacher: editSubTeacher.value.trim(),
+          leaveType: editLeaveType.value,
+          payMode: editPayMode.value,
+          periodsCount: Number(editPeriods.value) || 0,
+          rate: Number(editRate.value) || 405,
+          classFee: editPayMode.value === 'mentorDaily' ? 0 : (Number(editPeriods.value) * Number(editRate.value)),
+          mentorFee: Number(editMentorFee.value) || 0,
+          totalFee: Number(editTotalFee.value) || 0,
+          payNote: editPayNote.value.trim()
+        };
+
+        btnSaveEditRecord.disabled = true;
+        btnSaveEditRecord.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 儲存中...';
+
+        if (isGasEnv) {
+          google.script.run
+            .withSuccessHandler((res) => {
+              btnSaveEditRecord.disabled = false;
+              btnSaveEditRecord.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> 儲存修改';
+              if (res && res.status === 'success') {
+                editRecordModal.style.display = 'none';
+                alert(res.message);
+                if (res.records) {
+                  allRecords = res.records;
+                  localStorage.setItem('admin_records_cache', JSON.stringify(allRecords));
+                  renderDashboard();
+                }
+              } else {
+                alert('❌ 儲存失敗：' + (res ? res.message : '未知錯誤'));
+              }
+            })
+            .withFailureHandler((err) => {
+              btnSaveEditRecord.disabled = false;
+              btnSaveEditRecord.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> 儲存修改';
+              alert('❌ 儲存發生錯誤：' + err.message);
+            })
+            .updateMonthlyRecord(targetMonth, appId, updatedData, key);
+        } else {
+          btnSaveEditRecord.disabled = false;
+          btnSaveEditRecord.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> 儲存修改';
+          const recIdx = allRecords.findIndex(r => r.id === appId);
+          if (recIdx !== -1) {
+            Object.assign(allRecords[recIdx], updatedData);
+            renderDashboard();
+          }
+          editRecordModal.style.display = 'none';
+          alert('本機測試：已成功修改代課單！');
+        }
       });
 
       // 儲存導師加給與總額至 Google 試算表
