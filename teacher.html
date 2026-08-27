@@ -785,19 +785,33 @@ input[type="checkbox"] {
               </div>
 
               <!-- 連續多日模式選取器 -->
-              <div id="multi-date-container" style="display: none; background: #f0f9ff; border: 1.5px dashed #7dd3fc; padding: 0.75rem; border-radius: 8px; margin-top: 0.35rem;">
+              <div id="multi-date-container" style="display: none; background: #f0f9ff; border: 1.5px dashed #7dd3fc; padding: 0.85rem; border-radius: 8px; margin-top: 0.35rem;">
                 <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                  <div style="flex: 1; min-width: 130px;">
-                    <small style="color: #0369a1; font-weight: 700; display: block; margin-bottom: 0.25rem;">起：起始日期</small>
-                    <input type="date" id="input-start-date" style="background: white; font-weight: 600;">
+                  <div style="flex: 1; min-width: 135px;">
+                    <small style="color: #0369a1; font-weight: 700; display: block; margin-bottom: 0.25rem;">
+                      <i class="fa-solid fa-calendar-day"></i> 起：起始日期
+                    </small>
+                    <input type="date" id="input-start-date" style="background: white; font-weight: 600; cursor: pointer; width: 100%;" onclick="try{this.showPicker();}catch(e){}">
                   </div>
-                  <div style="color: #0284c7; font-weight: bold; margin-top: 1rem;">至</div>
-                  <div style="flex: 1; min-width: 130px;">
-                    <small style="color: #0369a1; font-weight: 700; display: block; margin-bottom: 0.25rem;">訖：結束日期</small>
-                    <input type="date" id="input-end-date" style="background: white; font-weight: 600;">
+                  <div style="color: #0284c7; font-weight: bold; margin-top: 1.2rem; font-size: 1.1rem;">至</div>
+                  <div style="flex: 1; min-width: 135px;">
+                    <small style="color: #0369a1; font-weight: 700; display: block; margin-bottom: 0.25rem;">
+                      <i class="fa-solid fa-calendar-check"></i> 訖：結束日期
+                    </small>
+                    <input type="date" id="input-end-date" style="background: white; font-weight: 600; cursor: pointer; width: 100%; border: 1.5px solid #38bdf8;" onclick="try{this.showPicker();}catch(e){}">
                   </div>
                 </div>
-                <div id="multi-day-summary" style="font-size: 0.82rem; color: #0369a1; margin-top: 0.5rem; font-weight: 600; line-height: 1.4;">
+
+                <!-- 快速選擇天數快捷鍵 -->
+                <div style="display: flex; align-items: center; gap: 0.35rem; margin-top: 0.6rem; flex-wrap: wrap;">
+                  <span style="font-size: 0.78rem; color: #0284c7; font-weight: 700;">⚡ 快速套用：</span>
+                  <button type="button" class="btn-quick-range" data-days="2" style="background: white; border: 1px solid #7dd3fc; color: #0369a1; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.78rem; cursor: pointer; font-weight: 600;">請 2 天</button>
+                  <button type="button" class="btn-quick-range" data-days="3" style="background: white; border: 1px solid #7dd3fc; color: #0369a1; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.78rem; cursor: pointer; font-weight: 600;">請 3 天</button>
+                  <button type="button" class="btn-quick-range" data-days="4" style="background: white; border: 1px solid #7dd3fc; color: #0369a1; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.78rem; cursor: pointer; font-weight: 600;">請 4 天</button>
+                  <button type="button" class="btn-quick-range" data-days="5" style="background: #e0f2fe; border: 1px solid #38bdf8; color: #0284c7; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.78rem; cursor: pointer; font-weight: 700;">請整週 (5天)</button>
+                </div>
+
+                <div id="multi-day-summary" style="font-size: 0.82rem; color: #0369a1; margin-top: 0.55rem; font-weight: 600; line-height: 1.4; background: white; padding: 0.5rem 0.65rem; border-radius: 6px; border: 1px solid #e0f2fe;">
                   <i class="fa-solid fa-circle-info"></i> 請選擇起始與結束日期（系統自動排除週六日）
                 </div>
               </div>
@@ -902,9 +916,9 @@ input[type="checkbox"] {
 
     <!-- 系統維護人員頁尾資訊 -->
     <footer style="text-align: center; padding: 1.5rem 1rem; margin-top: 2.5rem; border-top: 1px solid var(--border-color); color: var(--text-light); font-size: 0.85rem;">
-      <div><span id="footer-school-name">馬鳴國小</span> · 代課費計算與管理系統</div>
+      <div><span id="footer-school-name"><?= (typeof currentSchool !== 'undefined' && currentSchool) ? currentSchool : '馬鳴國小' ?></span> · 代課費計算與管理系統</div>
       <div style="margin-top: 0.35rem;">
-        <i class="fa-solid fa-server" style="color: #10b981;"></i> 系統運作與網管維護：<strong id="footer-maintainer" style="color: var(--text-color);">資訊執秘 蔡志益</strong>
+        <i class="fa-solid fa-server" style="color: #10b981;"></i> 系統運作與網管維護：<strong id="footer-maintainer" style="color: var(--text-color);"><?= (typeof currentMaintainer !== 'undefined' && currentMaintainer) ? currentMaintainer : '資訊執秘 蔡志益' ?></strong>
       </div>
     </footer>
 
@@ -1620,7 +1634,38 @@ input[type="checkbox"] {
         });
 
         inputStartDate.addEventListener('change', updateMultiDaySummary);
+        inputStartDate.addEventListener('input', updateMultiDaySummary);
         inputEndDate.addEventListener('change', updateMultiDaySummary);
+        inputEndDate.addEventListener('input', updateMultiDaySummary);
+
+        // 快速套用請假天數快捷鍵
+        document.querySelectorAll('.btn-quick-range').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const targetCount = parseInt(btn.getAttribute('data-days'), 10) || 2;
+            const startVal = inputStartDate.value || inputDate.value;
+            if (!startVal) return;
+            
+            let cur = new Date(startVal.replace(/-/g, '/'));
+            let countedDays = 0;
+            let lastWorkingDateStr = startVal;
+            
+            while (countedDays < targetCount) {
+              const dayOfWeek = cur.getDay();
+              if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                const y = cur.getFullYear();
+                const m = String(cur.getMonth() + 1).padStart(2, '0');
+                const d = String(cur.getDate()).padStart(2, '0');
+                lastWorkingDateStr = `${y}-${m}-${d}`;
+                countedDays++;
+              }
+              if (countedDays < targetCount) {
+                cur.setDate(cur.getDate() + 1);
+              }
+            }
+            inputEndDate.value = lastWorkingDateStr;
+            updateMultiDaySummary();
+          });
+        });
       }
 
       function getNextWorkingDate(currentDateStr) {

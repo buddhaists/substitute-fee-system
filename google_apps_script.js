@@ -194,6 +194,10 @@ function doGet(e) {
     var currentSettings = activeSs ? getSystemSettings(activeSs) : {};
     template.systemSettings = currentSettings;
     var currentSchool = (currentSettings && currentSettings.school_name) ? currentSettings.school_name : '代課系統';
+    var mTitle = (currentSettings && (currentSettings.maintainer_title || currentSettings.admin_title)) ? (currentSettings.maintainer_title || currentSettings.admin_title) : '系統維護';
+    var mName = (currentSettings && (currentSettings.maintainer_name || currentSettings.admin_name)) ? (currentSettings.maintainer_name || currentSettings.admin_name) : '';
+    template.currentSchool = currentSchool;
+    template.currentMaintainer = (mTitle + ' ' + mName).trim();
 
     if (page === 'teacher') {
       try {
@@ -559,8 +563,22 @@ function getSystemSettings(ss) {
     }
   }
 
+  // 雙向補全維護人員與舊版欄位相容
+  if (settings['maintainer_title'] && !settings['admin_title']) {
+    settings['admin_title'] = settings['maintainer_title'];
+  }
+  if (settings['admin_title'] && !settings['maintainer_title']) {
+    settings['maintainer_title'] = settings['admin_title'];
+  }
+  if (settings['maintainer_name'] && !settings['admin_name']) {
+    settings['admin_name'] = settings['maintainer_name'];
+  }
+  if (settings['admin_name'] && !settings['maintainer_name']) {
+    settings['maintainer_name'] = settings['admin_name'];
+  }
+
   try {
-    CacheService.getScriptCache().put("SYSTEM_SETTINGS", JSON.stringify(settings), 3600);
+    CacheService.getScriptCache().put("SYSTEM_SETTINGS", JSON.stringify(settings), 300);
   } catch (pErr) {}
 
   return settings;

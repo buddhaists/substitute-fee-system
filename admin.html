@@ -1038,9 +1038,9 @@ header p {
 
     <!-- 系統維護人員頁尾資訊 -->
     <footer style="text-align: center; padding: 1.5rem 1rem; margin-top: 2rem; border-top: 1px solid var(--border-color); color: var(--text-light); font-size: 0.85rem;">
-      <div><span id="footer-school-name">馬鳴國小</span> · 代課費計算與管理系統</div>
+      <div><span id="footer-school-name"><?= (typeof currentSchool !== 'undefined' && currentSchool) ? currentSchool : '馬鳴國小' ?></span> · 代課費計算與管理系統</div>
       <div style="margin-top: 0.35rem;">
-        <i class="fa-solid fa-server" style="color: #10b981;"></i> 系統運作與網管維護：<strong id="footer-maintainer" style="color: var(--text-dark);">資訊執秘 蔡志益</strong>
+        <i class="fa-solid fa-server" style="color: #10b981;"></i> 系統運作與網管維護：<strong id="footer-maintainer" style="color: var(--text-dark);"><?= (typeof currentMaintainer !== 'undefined' && currentMaintainer) ? currentMaintainer : '資訊執秘 蔡志益' ?></strong>
       </div>
     </footer>
     <div class="modal-overlay" id="settings-modal">
