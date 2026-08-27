@@ -769,76 +769,74 @@ input[type="checkbox"] {
             </div>
             
             <div class="form-group">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; flex-wrap: wrap; gap: 0.3rem;">
-                <label for="input-date" style="margin-bottom: 0; font-weight: 700;">
-                  <i class="fa-solid fa-calendar-day"></i> 代課日期
-                </label>
-                <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; color: #0284c7; cursor: pointer; font-weight: 700; background: #e0f2fe; padding: 0.2rem 0.5rem; border-radius: 6px; border: 1px solid #bae6fd; margin-bottom: 0;">
-                  <input type="checkbox" id="chk-multi-day-mode">
-                  <span><i class="fa-solid fa-calendar-days"></i> 連續多日請假模式</span>
-                </label>
-              </div>
+              <label style="font-weight: 700; color: var(--text-color); margin-bottom: 0.4rem; display: flex; align-items: center; justify-content: space-between;">
+                <span><i class="fa-solid fa-calendar-day" style="color: var(--secondary-color);"></i> 代課起訖日期 (可自選單日或多日)</span>
+                <span id="badge-day-count" style="font-size: 0.8rem; background: #e0f2fe; color: #0369a1; padding: 0.15rem 0.5rem; border-radius: 9999px; font-weight: 700;">1 天</span>
+              </label>
 
-              <!-- 單日模式選取器 -->
-              <div id="single-date-container">
-                <input type="date" id="input-date" required>
-              </div>
-
-              <!-- 連續多日模式選取器 -->
-              <div id="multi-date-container" style="display: none; background: #f0f9ff; border: 1.5px dashed #7dd3fc; padding: 0.85rem; border-radius: 8px; margin-top: 0.35rem;">
+              <!-- 起訖日期自選區 -->
+              <div style="background: #f8fafc; border: 1.5px solid #cbd5e1; padding: 0.85rem; border-radius: 8px;">
                 <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
                   <div style="flex: 1; min-width: 135px;">
                     <small style="color: #0369a1; font-weight: 700; display: block; margin-bottom: 0.25rem;">
-                      <i class="fa-solid fa-calendar-day"></i> 起：起始日期
+                      <i class="fa-solid fa-calendar-plus" style="color: #0284c7;"></i> 起：起始日期
                     </small>
-                    <input type="date" id="input-start-date" style="background: white; font-weight: 600; cursor: pointer; width: 100%;" onclick="try{this.showPicker();}catch(e){}">
+                    <input type="date" id="input-start-date" required style="background: white; font-weight: 600; cursor: pointer; width: 100%;" onclick="try{this.showPicker();}catch(e){}">
                   </div>
                   <div style="color: #0284c7; font-weight: bold; margin-top: 1.2rem; font-size: 1.1rem;">至</div>
                   <div style="flex: 1; min-width: 135px;">
                     <small style="color: #0369a1; font-weight: 700; display: block; margin-bottom: 0.25rem;">
-                      <i class="fa-solid fa-calendar-check"></i> 訖：結束日期
+                      <i class="fa-solid fa-calendar-check" style="color: #10b981;"></i> 訖：結束日期
                     </small>
-                    <input type="date" id="input-end-date" style="background: white; font-weight: 600; cursor: pointer; width: 100%; border: 1.5px solid #38bdf8;" onclick="try{this.showPicker();}catch(e){}">
+                    <input type="date" id="input-end-date" required style="background: white; font-weight: 600; cursor: pointer; width: 100%; border: 1.5px solid #38bdf8;" onclick="try{this.showPicker();}catch(e){}">
                   </div>
                 </div>
 
-                <!-- 快速選擇天數快捷鍵 -->
+                <!-- 快速天數切換按鈕 -->
                 <div style="display: flex; align-items: center; gap: 0.35rem; margin-top: 0.6rem; flex-wrap: wrap;">
-                  <span style="font-size: 0.78rem; color: #0284c7; font-weight: 700;">⚡ 快速套用：</span>
+                  <span style="font-size: 0.78rem; color: #64748b; font-weight: 700;">⚡ 快速套用：</span>
+                  <button type="button" class="btn-quick-range" data-days="1" style="background: white; border: 1px solid #cbd5e1; color: #334155; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.78rem; cursor: pointer; font-weight: 600;">今天 (1天)</button>
                   <button type="button" class="btn-quick-range" data-days="2" style="background: white; border: 1px solid #7dd3fc; color: #0369a1; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.78rem; cursor: pointer; font-weight: 600;">請 2 天</button>
                   <button type="button" class="btn-quick-range" data-days="3" style="background: white; border: 1px solid #7dd3fc; color: #0369a1; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.78rem; cursor: pointer; font-weight: 600;">請 3 天</button>
                   <button type="button" class="btn-quick-range" data-days="4" style="background: white; border: 1px solid #7dd3fc; color: #0369a1; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.78rem; cursor: pointer; font-weight: 600;">請 4 天</button>
                   <button type="button" class="btn-quick-range" data-days="5" style="background: #e0f2fe; border: 1px solid #38bdf8; color: #0284c7; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.78rem; cursor: pointer; font-weight: 700;">請整週 (5天)</button>
                 </div>
 
-                <div id="multi-day-summary" style="font-size: 0.82rem; color: #0369a1; margin-top: 0.55rem; font-weight: 600; line-height: 1.4; background: white; padding: 0.5rem 0.65rem; border-radius: 6px; border: 1px solid #e0f2fe;">
+                <div id="multi-day-summary" style="font-size: 0.82rem; color: #0369a1; margin-top: 0.55rem; font-weight: 600; line-height: 1.4; background: white; padding: 0.45rem 0.65rem; border-radius: 6px; border: 1px solid #e2e8f0;">
                   <i class="fa-solid fa-circle-info"></i> 請選擇起始與結束日期（系統自動排除週六日）
                 </div>
               </div>
+
+              <!-- 隱藏 input-date 欄位相容舊程式邏輯 -->
+              <input type="hidden" id="input-date">
             </div>
             
             <div class="form-row">
               <div>
-                <label for="input-school">學校名稱</label>
-                <input type="text" id="input-school" value="馬鳴國小">
+                <label for="input-school"><i class="fa-solid fa-school"></i> 學校名稱</label>
+                <input type="text" id="input-school" value="<?= (typeof currentSchool !== 'undefined' && currentSchool) ? currentSchool : '' ?>" readonly style="background: #f8fafc; color: #1e293b; font-weight: 600; cursor: not-allowed;" title="由系統全域設定管理，自動同步試算表">
+                <small style="color: var(--text-light); font-size: 0.75rem;">自動抓取自全域系統設定</small>
               </div>
               <div>
-                <label>鐘點費率</label>
-                <input type="text" value="國小 405 元/節" disabled style="background: #f1f5f9; color: #475569; font-weight: 600;">
+                <label for="display-rate-badge"><i class="fa-solid fa-money-bill-wave"></i> 鐘點費率</label>
+                <input type="text" id="display-rate-badge" value="" disabled style="background: #f8fafc; color: #1e293b; font-weight: 600; cursor: not-allowed;" title="由系統全域設定管理，自動同步試算表">
+                <small style="color: var(--text-light); font-size: 0.75rem;">依系統全域設定費率計費</small>
               </div>
             </div>
 
             <div class="form-row">
               <div>
-                <label for="select-absent-teacher">請假教師姓名</label>
+                <label for="select-absent-teacher"><i class="fa-solid fa-user-xmark"></i> 請假教師姓名</label>
                 <select id="select-absent-teacher" required>
                   <option value="">-- 請選擇教師 --</option>
                 </select>
                 <input type="text" id="input-absent-teacher-custom" placeholder="請輸入其他教師姓名" style="display:none; margin-top: 0.35rem;">
+                <small style="color: var(--text-light); font-size: 0.75rem;">由試算表課表抓取，與班級連動</small>
               </div>
               <div>
-                <label for="input-sub-teacher">代課教師姓名</label>
-                <input type="text" id="input-sub-teacher" value="蔡志益" required>
+                <label for="input-sub-teacher"><i class="fa-solid fa-user-check"></i> 代課教師姓名</label>
+                <input type="text" id="input-sub-teacher" placeholder="請輸入代課教師姓名" value="" required>
+                <small style="color: var(--text-light); font-size: 0.75rem;">請填寫實際代課之教師姓名</small>
               </div>
             </div>
 
@@ -1162,19 +1160,21 @@ input[type="checkbox"] {
           .getSystemSettingsData();
       }
 
-      // Set default date
+      // Set default date (起始與結束預設為今日)
       const today = new Date();
       const yyyy = today.getFullYear();
       const mm = String(today.getMonth() + 1).padStart(2, '0');
       const dd = String(today.getDate()).padStart(2, '0');
-      inputDate.value = `${yyyy}-${mm}-${dd}`;
+      const todayStr = `${yyyy}-${mm}-${dd}`;
+
+      inputStartDate.value = todayStr;
+      inputEndDate.value = todayStr;
+      inputDate.value = todayStr;
 
       // Load Settings & Saved Values
       inputScriptUrl.value = localStorage.getItem('gas_web_app_url') || '';
-      inputSubTeacher.value = localStorage.getItem('saved_sub_teacher') || '蔡志益';
-      if (!inputSchool.value) {
-        inputSchool.value = localStorage.getItem('saved_school') || CURRENT_SCHOOL_NAME;
-      }
+      // 代課教師姓名 預設空白
+      inputSubTeacher.value = '';
 
       // 取得目前請假教師姓名
       function getAbsentTeacherValue() {
@@ -1218,7 +1218,7 @@ input[type="checkbox"] {
         };
       }
 
-      // 取得特定班級的任課教師清單
+      // 取得特定班級的任課教師清單 (從試算表抓取)
       function getTeachersForClass(classVal) {
         const classData = TIMETABLE_DATABASE[classVal];
         if (!classData) return [];
@@ -1237,7 +1237,20 @@ input[type="checkbox"] {
         return Array.from(set).sort();
       }
 
-      // 取得全校所有任課教師清單
+      // 取得特定教師在哪些班級有排課 (從試算表抓取)
+      function getClassesForTeacher(teacherName) {
+        if (!teacherName) return [];
+        const matched = [];
+        Object.keys(TIMETABLE_DATABASE).forEach(cls => {
+          const classTeachers = getTeachersForClass(cls);
+          if (classTeachers.includes(teacherName)) {
+            matched.push(cls);
+          }
+        });
+        return matched;
+      }
+
+      // 取得全校所有任課教師清單 (從試算表抓取)
       function getAllSchoolTeachers() {
         const set = new Set();
         Object.keys(TIMETABLE_DATABASE).forEach(cls => {
@@ -1247,10 +1260,12 @@ input[type="checkbox"] {
         return Array.from(set).sort();
       }
 
-      // 動態更新請假教師下拉選單（呈現全校教師清單與手動輸入選項，不分組釘選）
+      // 動態更新請假教師下拉選單（連動班級：置頂呈現該班教師）
       function updateTeacherDropdown() {
         const allTeachers = getAllSchoolTeachers();
-        const currentVal = getAbsentTeacherValue();
+        const currentSelectedTeacher = getAbsentTeacherValue();
+        const currentClass = inputClass.value;
+        const classTeachers = currentClass ? getTeachersForClass(currentClass) : [];
 
         selectAbsentTeacher.innerHTML = '';
         
@@ -1259,12 +1274,37 @@ input[type="checkbox"] {
         defaultOpt.textContent = '-- 請選擇請假教師 --';
         selectAbsentTeacher.appendChild(defaultOpt);
 
-        allTeachers.forEach(t => {
-          const opt = document.createElement('option');
-          opt.value = t;
-          opt.textContent = t;
-          selectAbsentTeacher.appendChild(opt);
-        });
+        if (classTeachers.length > 0) {
+          const optGroupClass = document.createElement('optgroup');
+          optGroupClass.label = `⭐ ${currentClass} 任課教師`;
+          classTeachers.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t;
+            opt.textContent = t;
+            optGroupClass.appendChild(opt);
+          });
+          selectAbsentTeacher.appendChild(optGroupClass);
+
+          const otherTeachers = allTeachers.filter(t => !classTeachers.includes(t));
+          if (otherTeachers.length > 0) {
+            const optGroupOther = document.createElement('optgroup');
+            optGroupOther.label = `🏫 全校其他教師`;
+            otherTeachers.forEach(t => {
+              const opt = document.createElement('option');
+              opt.value = t;
+              opt.textContent = t;
+              optGroupOther.appendChild(opt);
+            });
+            selectAbsentTeacher.appendChild(optGroupOther);
+          }
+        } else {
+          allTeachers.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t;
+            opt.textContent = t;
+            selectAbsentTeacher.appendChild(opt);
+          });
+        }
 
         // 手動輸入選項
         const customOpt = document.createElement('option');
@@ -1272,15 +1312,14 @@ input[type="checkbox"] {
         customOpt.textContent = '✏️ 手動輸入其他教師姓名...';
         selectAbsentTeacher.appendChild(customOpt);
 
-        // 僅在使用者已有選擇時才恢復選取，預設保持「-- 請選擇請假教師 --」
-        if (currentVal && allTeachers.includes(currentVal)) {
-          selectAbsentTeacher.value = currentVal;
+        // 恢復先前選取的教師
+        if (currentSelectedTeacher && allTeachers.includes(currentSelectedTeacher)) {
+          selectAbsentTeacher.value = currentSelectedTeacher;
           inputAbsentTeacherCustom.style.display = 'none';
-        } else if (currentVal && selectAbsentTeacher.value === '__custom__') {
-          inputAbsentTeacherCustom.value = currentVal;
+        } else if (currentSelectedTeacher && selectAbsentTeacher.value === '__custom__') {
+          inputAbsentTeacherCustom.value = currentSelectedTeacher;
           inputAbsentTeacherCustom.style.display = 'block';
         } else {
-          selectAbsentTeacher.value = '';
           inputAbsentTeacherCustom.style.display = 'none';
         }
       }
@@ -1554,16 +1593,14 @@ input[type="checkbox"] {
       });
 
       // =============================================================
-      // 連續多日請假模式 (Date Range Picker & Batch Submission)
+      // 代課起訖日期自選邏輯 (Date Range Picker & Auto Mode Switch)
       // =============================================================
-      const chkMultiDayMode = document.getElementById('chk-multi-day-mode');
-      const singleDateContainer = document.getElementById('single-date-container');
-      const multiDateContainer = document.getElementById('multi-date-container');
       const inputStartDate = document.getElementById('input-start-date');
       const inputEndDate = document.getElementById('input-end-date');
       const multiDaySummary = document.getElementById('multi-day-summary');
       const multiDayBanner = document.getElementById('multi-day-banner');
       const btnSubmitAndNextDay = document.getElementById('btn-submit-and-next-day');
+      const badgeDayCount = document.getElementById('badge-day-count');
 
       function getWorkingDaysInRange(startStr, endStr) {
         if (!startStr || !endStr) return [];
@@ -1593,80 +1630,81 @@ input[type="checkbox"] {
         const end = inputEndDate.value;
         if (!start || !end) {
           multiDaySummary.innerHTML = '<i class="fa-solid fa-circle-info"></i> 請選擇起始與結束日期（系統自動排除週六日）';
+          if (badgeDayCount) badgeDayCount.textContent = '未選取';
           return;
         }
         if (start > end) {
           multiDaySummary.innerHTML = '<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> 結束日期不能早於起始日期！</span>';
+          if (badgeDayCount) badgeDayCount.textContent = '日期錯誤';
           return;
         }
         const workingDays = getWorkingDaysInRange(start, end);
         if (workingDays.length === 0) {
           multiDaySummary.innerHTML = '<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> 所選區間皆為週末，無上課日！</span>';
+          if (badgeDayCount) badgeDayCount.textContent = '無上課日';
           return;
         }
-        const listText = workingDays.map(d => `${d.dateStr} (${d.weekdayName})`).join('、');
-        multiDaySummary.innerHTML = `✅ 已選取 <strong>${workingDays.length} 個上課日</strong>：<br><span style="color:#0f766e;">${listText}</span>`;
+
+        if (badgeDayCount) {
+          badgeDayCount.textContent = workingDays.length === 1 ? '1 天' : `${workingDays.length} 天 (連續代課)`;
+          badgeDayCount.style.background = workingDays.length === 1 ? '#e0f2fe' : '#fef3c7';
+          badgeDayCount.style.color = workingDays.length === 1 ? '#0369a1' : '#92400e';
+        }
+
+        if (workingDays.length === 1) {
+          const d = workingDays[0];
+          multiDaySummary.innerHTML = `✅ 已選取單日：<strong>${d.dateStr} (星期${d.weekdayName})</strong>`;
+          if (btnSubmitAndNextDay) btnSubmitAndNextDay.style.display = 'block';
+          btnSubmit.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 2. 送出交接單 (存入雲端資料庫)';
+          if (multiDayBanner) multiDayBanner.style.display = 'none';
+        } else {
+          const listText = workingDays.map(d => `${d.dateStr} (${d.weekdayName})`).join('、');
+          multiDaySummary.innerHTML = `✅ 已選取 <strong>${workingDays.length} 個上課日</strong>：<br><span style="color:#0f766e;">${listText}</span>`;
+          if (btnSubmitAndNextDay) btnSubmitAndNextDay.style.display = 'none';
+          btnSubmit.innerHTML = '<i class="fa-solid fa-layer-group"></i> 2. 一鍵批次送出 ' + workingDays.length + ' 日交接單 (存入雲端)';
+          if (multiDayBanner) multiDayBanner.style.display = 'block';
+        }
+
         inputDate.value = start;
         autoFillTimetable();
       }
 
-      if (chkMultiDayMode) {
-        chkMultiDayMode.addEventListener('change', () => {
-          const isMulti = chkMultiDayMode.checked;
-          if (isMulti) {
-            singleDateContainer.style.display = 'none';
-            multiDateContainer.style.display = 'block';
-            multiDayBanner.style.display = 'block';
-            if (btnSubmitAndNextDay) btnSubmitAndNextDay.style.display = 'none';
-            btnSubmit.innerHTML = '<i class="fa-solid fa-layer-group"></i> 2. 一鍵批次送出多日交接單 (存入雲端)';
-            
-            if (!inputStartDate.value) inputStartDate.value = inputDate.value;
-            if (!inputEndDate.value) inputEndDate.value = getNextWorkingDate(inputDate.value);
-            updateMultiDaySummary();
-          } else {
-            singleDateContainer.style.display = 'block';
-            multiDateContainer.style.display = 'none';
-            multiDayBanner.style.display = 'none';
-            if (btnSubmitAndNextDay) btnSubmitAndNextDay.style.display = 'block';
-            btnSubmit.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 2. 送出交接單 (存入雲端資料庫)';
-            autoFillTimetable();
-          }
-        });
+      inputStartDate.addEventListener('change', updateMultiDaySummary);
+      inputStartDate.addEventListener('input', updateMultiDaySummary);
+      inputEndDate.addEventListener('change', updateMultiDaySummary);
+      inputEndDate.addEventListener('input', updateMultiDaySummary);
 
-        inputStartDate.addEventListener('change', updateMultiDaySummary);
-        inputStartDate.addEventListener('input', updateMultiDaySummary);
-        inputEndDate.addEventListener('change', updateMultiDaySummary);
-        inputEndDate.addEventListener('input', updateMultiDaySummary);
-
-        // 快速套用請假天數快捷鍵
-        document.querySelectorAll('.btn-quick-range').forEach(btn => {
-          btn.addEventListener('click', () => {
-            const targetCount = parseInt(btn.getAttribute('data-days'), 10) || 2;
-            const startVal = inputStartDate.value || inputDate.value;
-            if (!startVal) return;
-            
-            let cur = new Date(startVal.replace(/-/g, '/'));
-            let countedDays = 0;
-            let lastWorkingDateStr = startVal;
-            
-            while (countedDays < targetCount) {
-              const dayOfWeek = cur.getDay();
-              if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-                const y = cur.getFullYear();
-                const m = String(cur.getMonth() + 1).padStart(2, '0');
-                const d = String(cur.getDate()).padStart(2, '0');
-                lastWorkingDateStr = `${y}-${m}-${d}`;
-                countedDays++;
-              }
-              if (countedDays < targetCount) {
-                cur.setDate(cur.getDate() + 1);
-              }
+      // 快速套用請假天數快捷鍵
+      document.querySelectorAll('.btn-quick-range').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const targetCount = parseInt(btn.getAttribute('data-days'), 10) || 1;
+          const startVal = inputStartDate.value || inputDate.value;
+          if (!startVal) return;
+          
+          let cur = new Date(startVal.replace(/-/g, '/'));
+          let countedDays = 0;
+          let lastWorkingDateStr = startVal;
+          
+          while (countedDays < targetCount) {
+            const dayOfWeek = cur.getDay();
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+              const y = cur.getFullYear();
+              const m = String(cur.getMonth() + 1).padStart(2, '0');
+              const d = String(cur.getDate()).padStart(2, '0');
+              lastWorkingDateStr = `${y}-${m}-${d}`;
+              countedDays++;
             }
-            inputEndDate.value = lastWorkingDateStr;
-            updateMultiDaySummary();
-          });
+            if (countedDays < targetCount) {
+              cur.setDate(cur.getDate() + 1);
+            }
+          }
+          inputEndDate.value = lastWorkingDateStr;
+          updateMultiDaySummary();
         });
-      }
+      });
+
+      // 初始化計算日期摘要
+      updateMultiDaySummary();
 
       function getNextWorkingDate(currentDateStr) {
         if (!currentDateStr) {
@@ -1693,7 +1731,23 @@ input[type="checkbox"] {
           return;
         }
 
-        const isMultiDay = chkMultiDayMode && chkMultiDayMode.checked;
+        const start = inputStartDate.value;
+        const end = inputEndDate.value;
+        if (!start || !end) {
+          alert('請完整選擇起始日期與結束日期！');
+          return;
+        }
+        if (start > end) {
+          alert('結束日期不能早於起始日期！');
+          return;
+        }
+        const workingDays = getWorkingDaysInRange(start, end);
+        if (workingDays.length === 0) {
+          alert('所選日期區間內無任何上課日 (週一至週五)！');
+          return;
+        }
+
+        const isMultiDay = workingDays.length > 1;
 
         // =========================================================
         // 分支 A: 連續多日請假模式（批次建立多天交接單）
