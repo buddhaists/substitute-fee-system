@@ -334,8 +334,12 @@ footer {
       
     </div>
     
-    <footer>
-      <p><i class="fa-solid fa-cloud-check"></i> Google Apps Script 雲端原生版 ─ <span id="footer-school-name">國小代課系統</span></p>
+    <!-- 系統維護人員頁尾資訊 -->
+    <footer style="text-align: center; padding: 1.5rem 1rem; margin-top: 3rem; border-top: 1px solid var(--border-color); color: var(--text-light); font-size: 0.85rem;">
+      <div><span id="footer-school-name">馬鳴國小</span> · 代課費計算與管理系統</div>
+      <div style="margin-top: 0.35rem;">
+        <i class="fa-solid fa-server" style="color: #10b981;"></i> 系統運作與網管維護：<strong id="footer-maintainer" style="color: var(--text-color);">資訊執秘 蔡志益</strong>
+      </div>
     </footer>
     
   </div>
@@ -343,12 +347,17 @@ footer {
   <script>
     const isGasEnv = typeof google !== 'undefined' && google.script && google.script.run;
     function applySchoolName(settings) {
-      if (settings && settings.school_name) {
+      if (!settings) return;
+      if (settings.school_name) {
         document.title = `${settings.school_name} - 代課費計算與管理系統`;
         document.getElementById('nav-school-name').textContent = settings.school_name;
         document.getElementById('portal-sub-text').textContent = `${settings.school_name} 專屬 ─ 請選擇您要進入的模組`;
         document.getElementById('footer-school-name').textContent = settings.school_name;
       }
+      const mTitle = settings.maintainer_title || settings.admin_title || '資訊執秘';
+      const mName = settings.maintainer_name || settings.admin_name || '蔡志益';
+      const footerM = document.getElementById('footer-maintainer');
+      if (footerM) footerM.textContent = `${mTitle} ${mName}`;
     }
     if (typeof SERVER_SYSTEM_SETTINGS !== 'undefined' && SERVER_SYSTEM_SETTINGS) {
       applySchoolName(SERVER_SYSTEM_SETTINGS);
