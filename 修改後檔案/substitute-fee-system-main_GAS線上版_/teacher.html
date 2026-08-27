@@ -792,15 +792,6 @@ input[type="checkbox"] {
                   </div>
                 </div>
 
-                <!-- 快速天數切換按鈕 -->
-                <div style="display: flex; align-items: center; gap: 0.35rem; margin-top: 0.6rem; flex-wrap: wrap;">
-                  <span style="font-size: 0.78rem; color: #64748b; font-weight: 700;">⚡ 快速套用：</span>
-                  <button type="button" class="btn-quick-range" onclick="setQuickDaysRange(1)" style="background: white; border: 1px solid #cbd5e1; color: #334155; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: 600;">今天 (1天)</button>
-                  <button type="button" class="btn-quick-range" onclick="setQuickDaysRange(2)" style="background: white; border: 1px solid #7dd3fc; color: #0369a1; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: 600;">請 2 天</button>
-                  <button type="button" class="btn-quick-range" onclick="setQuickDaysRange(3)" style="background: white; border: 1px solid #7dd3fc; color: #0369a1; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: 600;">請 3 天</button>
-                  <button type="button" class="btn-quick-range" onclick="setQuickDaysRange(4)" style="background: white; border: 1px solid #7dd3fc; color: #0369a1; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: 600;">請 4 天</button>
-                  <button type="button" class="btn-quick-range" onclick="setQuickDaysRange(5)" style="background: #e0f2fe; border: 1.5px solid #38bdf8; color: #0284c7; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: 700;">請整週 (5天)</button>
-                </div>
 
                 <div id="multi-day-summary" style="font-size: 0.82rem; color: #0369a1; margin-top: 0.55rem; font-weight: 600; line-height: 1.4; background: white; padding: 0.45rem 0.65rem; border-radius: 6px; border: 1px solid #e2e8f0;">
                   <i class="fa-solid fa-circle-info"></i> 請選擇起始與結束日期（系統自動排除週六日）
@@ -1006,9 +997,8 @@ input[type="checkbox"] {
 
   <!-- Javascript Logic for Teacher Page -->
   <script>
-    const isGasEnv = typeof google !== 'undefined' && typeof google.script !== 'undefined' && typeof google.script.run !== 'undefined';
-    const SERVER_SYSTEM_SETTINGS = <?!= (typeof systemSettings !== 'undefined' && systemSettings) ? JSON.stringify(systemSettings) : '{}' ?>;
-    const SERVER_TIMETABLE = <?!= (typeof serverTimetable !== 'undefined' && serverTimetable) ? JSON.stringify(serverTimetable) : '{}' ?>;
+    var isGasEnv = typeof google !== 'undefined' && typeof google.script !== 'undefined' && typeof google.script.run !== 'undefined';
+    // SERVER_SYSTEM_SETTINGS 和 SERVER_TIMETABLE 已在 head 的 <script> 區塊（行 594-595）用 var 宣告，此處不重複宣告
 
     function navTo(page) {
       var serverUrl = "<?= appUrl ?>";
@@ -1117,9 +1107,13 @@ input[type="checkbox"] {
           cur.setDate(cur.getDate() + 1);
         }
       }
-      if (inputEndDate) inputEndDate.value = lastWorkingDateStr;
-      if (typeof updateMultiDaySummary === 'function') {
-        updateMultiDaySummary();
+      if (inputEndDate) {
+        inputEndDate.value = lastWorkingDateStr;
+        inputEndDate.dispatchEvent(new Event('change'));
+        inputEndDate.dispatchEvent(new Event('input'));
+      }
+      if (typeof window.updateMultiDaySummary === 'function') {
+        window.updateMultiDaySummary();
       }
     };
 
@@ -1136,6 +1130,8 @@ input[type="checkbox"] {
     document.addEventListener('DOMContentLoaded', () => {
       // Elements
       const inputDate = document.getElementById('input-date');
+      const inputStartDate = document.getElementById('input-start-date');
+      const inputEndDate = document.getElementById('input-end-date');
       const inputSchool = document.getElementById('input-school');
       const displayRateBadge = document.getElementById('display-rate-badge');
       const selectAbsentTeacher = document.getElementById('select-absent-teacher');
@@ -1682,8 +1678,7 @@ input[type="checkbox"] {
       // =============================================================
       // 代課起訖日期自選邏輯 (Date Range Picker & Auto Mode Switch)
       // =============================================================
-      const inputStartDate = document.getElementById('input-start-date');
-      const inputEndDate = document.getElementById('input-end-date');
+      // 注意: inputStartDate / inputEndDate 已在 DOMContentLoaded 頂部宣告，此處不重複宣告
       const multiDaySummary = document.getElementById('multi-day-summary');
       const multiDayBanner = document.getElementById('multi-day-banner');
       const btnSubmitAndNextDay = document.getElementById('btn-submit-and-next-day');
@@ -1755,6 +1750,8 @@ input[type="checkbox"] {
         inputDate.value = start;
         autoFillTimetable();
       }
+      // 讓外部的 window.setQuickDaysRange 可呼叫到此函式
+      window.updateMultiDaySummary = updateMultiDaySummary;
 
       inputStartDate.addEventListener('change', updateMultiDaySummary);
       inputStartDate.addEventListener('input', updateMultiDaySummary);
