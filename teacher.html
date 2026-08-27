@@ -853,6 +853,10 @@ input[type="checkbox"] {
               <button class="btn btn-success" id="btn-cloud-submit">
                 <i class="fa-solid fa-cloud-arrow-up"></i> 2. 送出交接單 (存入雲端資料庫)
               </button>
+
+              <button class="btn btn-outline" id="btn-submit-and-next-day" style="border-color: #10b981; color: #047857; background: #ecfdf5; font-weight: 700;">
+                <i class="fa-solid fa-forward-step"></i> 🚀 送出並自動套用至明日 (連續代課)
+              </button>
               
               <button class="btn btn-secondary" id="btn-email-backup">
                 <i class="fa-solid fa-copy"></i> 3. 複製交接內容 (貼到信箱/LINE)
@@ -1475,8 +1479,29 @@ input[type="checkbox"] {
         window.print();
       });
 
-      // Submit to Google Sheet (優先採用 GAS 伺服端直連，免除 CORS 與網址設定)
-      btnSubmit.addEventListener('click', async () => {
+      // Submit to Google Sheet (支援單日送出與連續代課順延至明日)
+      const btnSubmitAndNextDay = document.getElementById('btn-submit-and-next-day');
+
+      function getNextWorkingDate(currentDateStr) {
+        if (!currentDateStr) {
+          const now = new Date();
+          return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        }
+        const d = new Date(currentDateStr.replace(/-/g, '/'));
+        d.setDate(d.getDate() + 1);
+        // 若為週六 (6) 聰明跳過週末至週一；若為週日 (0) 跳至週一
+        if (d.getDay() === 6) {
+          d.setDate(d.getDate() + 2);
+        } else if (d.getDay() === 0) {
+          d.setDate(d.getDate() + 1);
+        }
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+
+      async function handleFormSubmission(isNextDayMode = false) {
         const absentTeacher = getAbsentTeacherValue();
         if (!absentTeacher || !inputSubTeacher.value.trim()) {
           alert('請選擇或輸入請假教師，並填寫代課教師姓名！');
@@ -1489,8 +1514,10 @@ input[type="checkbox"] {
           return;
         }
 
-        btnSubmit.disabled = true;
-        btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 資料上傳中...';
+        const activeBtn = isNextDayMode ? btnSubmitAndNextDay : btnSubmit;
+        const originalHtml = activeBtn.innerHTML;
+        activeBtn.disabled = true;
+        activeBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 資料上傳中...';
 
         // Extract periods details
         const periodsDetail = [];
@@ -1505,9 +1532,10 @@ input[type="checkbox"] {
           }
         });
 
+        const submittedDate = inputDate.value;
         const payload = {
           id: Date.now().toString(),
-          date: inputDate.value,
+          date: submittedDate,
           school: inputSchool.value.trim(),
           level: 'elementary',
           absentTeacher: absentTeacher,
@@ -1523,36 +1551,61 @@ input[type="checkbox"] {
           periodsDetail: periodsDetail
         };
 
-        const resetForm = () => {
-          selectAbsentTeacher.value = '';
-          inputAbsentTeacherCustom.value = '';
-          inputAbsentTeacherCustom.style.display = 'none';
-          chkMentorDaily.checked = false;
-          document.querySelectorAll('#schedule-tbody tr').forEach(row => {
-            row.querySelector('input[type="checkbox"]').checked = false;
-            row.cells[4].querySelector('input').value = '';
-          });
-          localStorage.setItem('saved_sub_teacher', inputSubTeacher.value.trim());
-          localStorage.setItem('saved_school', inputSchool.value.trim());
-          autoFillTimetable();
+        const onCompleteSuccess = () => {
+          activeBtn.disabled = false;
+          activeBtn.innerHTML = originalHtml;
+
+          if (isNextDayMode) {
+            const nextDate = getNextWorkingDate(submittedDate);
+            inputDate.value = nextDate;
+            
+            // 清空課堂交代事項文字
+            document.querySelectorAll('#schedule-tbody tr').forEach(row => {
+              row.cells[4].querySelector('input').value = '';
+            });
+
+            // 重新帶入明日對應課表
+            autoFillTimetable();
+
+            // 若為整天代理，自動將明日所有課表全選
+            if (chkMentorDaily.checked) {
+              document.querySelectorAll('#schedule-tbody input[type="checkbox"]').forEach(cb => cb.checked = true);
+              calculateCurrentFee();
+            }
+
+            alert(`🎉 【${submittedDate}】交接單已成功送出！\n\n已自動為您切換至明日【${nextDate}】，並已帶入明日課表。\n請確認課堂事項後即可再次送出。`);
+          } else {
+            alert('🎉 資料已成功寫入 Google 試算表雲端資料庫！');
+            // 普通重設
+            selectAbsentTeacher.value = '';
+            inputAbsentTeacherCustom.value = '';
+            inputAbsentTeacherCustom.style.display = 'none';
+            chkMentorDaily.checked = false;
+            document.querySelectorAll('#schedule-tbody tr').forEach(row => {
+              row.querySelector('input[type="checkbox"]').checked = false;
+              row.cells[4].querySelector('input').value = '';
+            });
+            localStorage.setItem('saved_sub_teacher', inputSubTeacher.value.trim());
+            localStorage.setItem('saved_school', inputSchool.value.trim());
+            autoFillTimetable();
+          }
         };
 
         // 1. 如果在 GAS 環境中，使用 google.script.run 直連
         if (isGasEnv) {
           google.script.run
             .withSuccessHandler((res) => {
-              btnSubmit.disabled = false;
-              btnSubmit.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 2. 送出交接單 (存入雲端資料庫)';
               if (res && res.status === 'success') {
-                alert('🎉 資料已成功寫入 Google 試算表雲端資料庫！\n' + (res.message || ''));
-                resetForm();
+                onCompleteSuccess();
               } else {
+                activeBtn.disabled = false;
+                activeBtn.innerHTML = originalHtml;
                 alert('❌ 上傳失敗：' + (res ? res.message : '未知錯誤'));
               }
             })
             .withFailureHandler((err) => {
-              btnSubmit.disabled = false;
-              btnSubmit.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 2. 送出交接單 (存入雲端資料庫)';
+              activeBtn.disabled = false;
+              activeBtn.innerHTML = originalHtml;
               alert('❌ 上傳發生錯誤：' + err.message);
             })
             .saveHandoverRecord(payload);
@@ -1562,8 +1615,8 @@ input[type="checkbox"] {
         // 2. 如果在外部環境，使用 HTTP fetch
         const url = localStorage.getItem('gas_web_app_url');
         if (!url) {
-          btnSubmit.disabled = false;
-          btnSubmit.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 2. 送出交接單 (存入雲端資料庫)';
+          activeBtn.disabled = false;
+          activeBtn.innerHTML = originalHtml;
           alert('⚠️ 請先點擊右上角設定 (齒輪圖案)，填入 Google Apps Script 網頁應用程式 URL！');
           modal.style.display = 'flex';
           return;
@@ -1576,17 +1629,19 @@ input[type="checkbox"] {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
-          
-          alert('🎉 資料已成功傳送到 Google 試算表雲端資料庫！');
-          resetForm();
+          onCompleteSuccess();
         } catch (error) {
+          activeBtn.disabled = false;
+          activeBtn.innerHTML = originalHtml;
           console.error(error);
           alert('❌ 上傳失敗！請檢查雲端網址是否正確。詳細錯誤：' + error.message);
-        } finally {
-          btnSubmit.disabled = false;
-          btnSubmit.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 2. 送出交接單 (存入雲端資料庫)';
         }
-      });
+      }
+
+      btnSubmit.addEventListener('click', () => handleFormSubmission(false));
+      if (btnSubmitAndNextDay) {
+        btnSubmitAndNextDay.addEventListener('click', () => handleFormSubmission(true));
+      }
 
       // 複製交接內容到剪貼簿
       btnEmail.addEventListener('click', async () => {
