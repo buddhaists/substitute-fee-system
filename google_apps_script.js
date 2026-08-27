@@ -198,6 +198,10 @@ function doGet(e) {
     var mName = (currentSettings && (currentSettings.maintainer_name || currentSettings.admin_name)) ? (currentSettings.maintainer_name || currentSettings.admin_name) : '';
     template.currentSchool = currentSchool;
     template.currentMaintainer = (mTitle + ' ' + mName).trim();
+    var rateVal = (currentSettings && currentSettings.rate_per_period) ? currentSettings.rate_per_period : '405';
+    var levelVal = (currentSettings && currentSettings.school_level === 'junior') ? '國中' : ((currentSettings && currentSettings.school_level === 'senior') ? '高中' : '國小');
+    template.currentRate = rateVal;
+    template.currentRateText = levelVal + ' ' + rateVal + ' 元/節';
 
     if (page === 'teacher') {
       try {
@@ -777,7 +781,7 @@ function buildTimetable(ss) {
   var result = { db: db, teachers: teachers, classes: classes };
 
   try {
-    CacheService.getScriptCache().put("TIMETABLE_DB", JSON.stringify(result), 3600);
+    CacheService.getScriptCache().put("TIMETABLE_DB", JSON.stringify(result), 300);
   } catch (pErr) {}
 
   return result;

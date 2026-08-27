@@ -795,11 +795,11 @@ input[type="checkbox"] {
                 <!-- 快速天數切換按鈕 -->
                 <div style="display: flex; align-items: center; gap: 0.35rem; margin-top: 0.6rem; flex-wrap: wrap;">
                   <span style="font-size: 0.78rem; color: #64748b; font-weight: 700;">⚡ 快速套用：</span>
-                  <button type="button" class="btn-quick-range" data-days="1" style="background: white; border: 1px solid #cbd5e1; color: #334155; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.78rem; cursor: pointer; font-weight: 600;">今天 (1天)</button>
-                  <button type="button" class="btn-quick-range" data-days="2" style="background: white; border: 1px solid #7dd3fc; color: #0369a1; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.78rem; cursor: pointer; font-weight: 600;">請 2 天</button>
-                  <button type="button" class="btn-quick-range" data-days="3" style="background: white; border: 1px solid #7dd3fc; color: #0369a1; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.78rem; cursor: pointer; font-weight: 600;">請 3 天</button>
-                  <button type="button" class="btn-quick-range" data-days="4" style="background: white; border: 1px solid #7dd3fc; color: #0369a1; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.78rem; cursor: pointer; font-weight: 600;">請 4 天</button>
-                  <button type="button" class="btn-quick-range" data-days="5" style="background: #e0f2fe; border: 1px solid #38bdf8; color: #0284c7; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.78rem; cursor: pointer; font-weight: 700;">請整週 (5天)</button>
+                  <button type="button" class="btn-quick-range" onclick="setQuickDaysRange(1)" style="background: white; border: 1px solid #cbd5e1; color: #334155; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: 600;">今天 (1天)</button>
+                  <button type="button" class="btn-quick-range" onclick="setQuickDaysRange(2)" style="background: white; border: 1px solid #7dd3fc; color: #0369a1; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: 600;">請 2 天</button>
+                  <button type="button" class="btn-quick-range" onclick="setQuickDaysRange(3)" style="background: white; border: 1px solid #7dd3fc; color: #0369a1; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: 600;">請 3 天</button>
+                  <button type="button" class="btn-quick-range" onclick="setQuickDaysRange(4)" style="background: white; border: 1px solid #7dd3fc; color: #0369a1; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: 600;">請 4 天</button>
+                  <button type="button" class="btn-quick-range" onclick="setQuickDaysRange(5)" style="background: #e0f2fe; border: 1.5px solid #38bdf8; color: #0284c7; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: 700;">請整週 (5天)</button>
                 </div>
 
                 <div id="multi-day-summary" style="font-size: 0.82rem; color: #0369a1; margin-top: 0.55rem; font-weight: 600; line-height: 1.4; background: white; padding: 0.45rem 0.65rem; border-radius: 6px; border: 1px solid #e2e8f0;">
@@ -819,7 +819,7 @@ input[type="checkbox"] {
               </div>
               <div>
                 <label for="display-rate-badge"><i class="fa-solid fa-money-bill-wave"></i> 鐘點費率</label>
-                <input type="text" id="display-rate-badge" value="" disabled style="background: #f8fafc; color: #1e293b; font-weight: 600; cursor: not-allowed;" title="由系統全域設定管理，自動同步試算表">
+                <input type="text" id="display-rate-badge" value="<?= (typeof currentRateText !== 'undefined' && currentRateText) ? currentRateText : '國小 405 元/節' ?>" disabled style="background: #f8fafc; color: #1e293b; font-weight: 600; cursor: not-allowed;" title="由系統全域設定管理，自動同步試算表">
                 <small style="color: var(--text-light); font-size: 0.75rem;">依系統全域設定費率計費</small>
               </div>
             </div>
@@ -1081,6 +1081,40 @@ input[type="checkbox"] {
       window.location.href = target;
     }
 
+    // 全域快速套用請假天數函式
+    window.setQuickDaysRange = function(targetCount) {
+      const inputStartDate = document.getElementById('input-start-date');
+      const inputEndDate = document.getElementById('input-end-date');
+      let startVal = inputStartDate ? inputStartDate.value : '';
+      if (!startVal) {
+        const now = new Date();
+        startVal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        if (inputStartDate) inputStartDate.value = startVal;
+      }
+
+      let cur = new Date(startVal.replace(/-/g, '/'));
+      let countedDays = 0;
+      let lastWorkingDateStr = startVal;
+      
+      while (countedDays < targetCount) {
+        const dayOfWeek = cur.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) { // 排除週六、週日
+          const y = cur.getFullYear();
+          const m = String(cur.getMonth() + 1).padStart(2, '0');
+          const d = String(cur.getDate()).padStart(2, '0');
+          lastWorkingDateStr = `${y}-${m}-${d}`;
+          countedDays++;
+        }
+        if (countedDays < targetCount) {
+          cur.setDate(cur.getDate() + 1);
+        }
+      }
+      if (inputEndDate) inputEndDate.value = lastWorkingDateStr;
+      if (typeof updateMultiDaySummary === 'function') {
+        updateMultiDaySummary();
+      }
+    };
+
     document.addEventListener('DOMContentLoaded', () => {
       // Elements
       const inputDate = document.getElementById('input-date');
@@ -1138,10 +1172,11 @@ input[type="checkbox"] {
         const footerM = document.getElementById('footer-maintainer');
         if (footerM) footerM.textContent = `${mTitle} ${mName}`;
 
-        if (settings.rate_per_period) {
-          CURRENT_RATE = Number(settings.rate_per_period) || 405;
-          const levelText = settings.school_level === 'junior' ? '國中' : (settings.school_level === 'senior' ? '高中' : '國小');
-          if (displayRateBadge) displayRateBadge.value = `${levelText} ${CURRENT_RATE} 元/節`;
+        const rateVal = settings.rate_per_period || '405';
+        CURRENT_RATE = Number(rateVal) || 405;
+        const levelText = settings.school_level === 'junior' ? '國中' : (settings.school_level === 'senior' ? '高中' : '國小');
+        if (displayRateBadge) {
+          displayRateBadge.value = `${levelText} ${CURRENT_RATE} 元/節`;
         }
         calculateCurrentFee();
       }
@@ -1385,9 +1420,9 @@ input[type="checkbox"] {
         return { periodsCount, rate: CURRENT_RATE, totalFee, mentorDaily };
       }
 
-      // Auto-fill Timetable
+      // Auto-fill Timetable (連動日期、班級、請假教師，自動抓取資料庫當天課表並智慧勾選)
       function autoFillTimetable() {
-        const dateVal = inputDate.value;
+        const dateVal = inputStartDate.value || inputDate.value;
         const classVal = inputClass.value;
         const teacherVal = getAbsentTeacherValue();
         
@@ -1423,13 +1458,18 @@ input[type="checkbox"] {
             const periodData = dayTimetable ? dayTimetable[period] : null;
             if (periodData) {
               subjectInput.value = periodData.subject || '';
+              // 智慧連動：如果該節次的授課教師是選取的請假教師，自動打勾！
+              if (teacherVal && periodData.teacher && periodData.teacher.trim() === teacherVal.trim()) {
+                checkbox.checked = true;
+              } else {
+                checkbox.checked = false;
+              }
             } else {
               subjectInput.value = '';
+              checkbox.checked = false;
             }
-            // 課表科目自動載入，但核取方塊一律保持為「未勾選」，由教師手動勾選實際代課節次
-            checkbox.checked = false;
           } else {
-            checkbox.checked = false;
+            // 非計費作息項目保持原樣
           }
         });
         
@@ -1458,7 +1498,7 @@ input[type="checkbox"] {
         autoFillTimetable();
       });
       
-      // 反向連動：切換教師時，自動連動切換至該教師任教之班級
+      // 反向連動：切換教師時，自動連動切換至該教師當天/任教之班級
       selectAbsentTeacher.addEventListener('change', () => {
         const val = selectAbsentTeacher.value;
         if (val === '__custom__') {
@@ -1469,9 +1509,38 @@ input[type="checkbox"] {
           inputAbsentTeacherCustom.value = '';
           
           if (val) {
-            const teacherClasses = getClassesForTeacher(val);
-            if (teacherClasses.length > 0 && !teacherClasses.includes(inputClass.value)) {
-              inputClass.value = teacherClasses[0];
+            const dateVal = inputStartDate.value || inputDate.value;
+            const dateObj = new Date(dateVal.replace(/-/g, '/'));
+            const dayOfWeek = dateObj.getDay();
+
+            // 1. 優先檢查當天該教師是否有課的班級
+            let matchedClass = null;
+            const allClasses = Object.keys(TIMETABLE_DATABASE);
+            if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+              for (let c = 0; c < allClasses.length; c++) {
+                const cls = allClasses[c];
+                const daySchedule = (TIMETABLE_DATABASE[cls] && TIMETABLE_DATABASE[cls][dayOfWeek]) || {};
+                for (let p in daySchedule) {
+                  if (daySchedule[p] && daySchedule[p].teacher && daySchedule[p].teacher.trim() === val.trim()) {
+                    matchedClass = cls;
+                    break;
+                  }
+                }
+                if (matchedClass) break;
+              }
+            }
+
+            // 2. 若當天無排課，則找任教之任一班級
+            if (!matchedClass) {
+              const teacherClasses = getClassesForTeacher(val);
+              if (teacherClasses.length > 0) {
+                matchedClass = teacherClasses[0];
+              }
+            }
+
+            if (matchedClass && inputClass.value !== matchedClass) {
+              inputClass.value = matchedClass;
+              updateTeacherDropdown();
             }
           }
         }
