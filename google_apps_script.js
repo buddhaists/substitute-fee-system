@@ -27,11 +27,13 @@ var SETTINGS_HEADERS = ["項目名稱(Name)", "設定代碼(Key)", "設定值(Va
 
 var DEFAULT_SETTINGS = [
   { name: "學校名稱", key: "school_name", value: "馬鳴國小", desc: "系統全銜與印領清冊抬頭" },
+  { name: "維護人員職稱", key: "admin_title", value: "教學組長", desc: "系統維護與承辦人員職稱" },
+  { name: "維護人員姓名", key: "admin_name", value: "蔡志益", desc: "系統維護與承辦人員姓名" },
   { name: "教育階段", key: "school_level", value: "elementary", desc: "elementary(國小) / junior(國中) / senior(高中)" },
   { name: "單節鐘點費率", key: "rate_per_period", value: "405", desc: "國小 405 元/節 (依教育部函文)" },
   { name: "學年學期", key: "academic_year_term", value: "114-1", desc: "當前運行的學年與學期" },
   { name: "代理導師預設日薪", key: "mentor_daily_rate", value: "1528", desc: "整天代導師之日薪預設標準" },
-  { name: "非計費作息項目", key: "duty_items", value: "早修,打鎖,午餐,午休,放學", desc: "交接單上之作息指導項目(逗號分隔)" },
+  { name: "非計費作息項目", key: "duty_items", value: "早修,打掃,午餐,午休,放學", desc: "交接單上之作息指導項目(逗號分隔)" },
   { name: "安全管理金鑰", key: "secret_key", value: "087525402", desc: "行政端結算與課表匯入之安全管理金鑰(密碼)" }
 ];
 
@@ -366,12 +368,14 @@ function getValidSecretKey(ss) {
     if (sheet) {
       var lastRow = sheet.getLastRow();
       if (lastRow > 1) {
-        var values = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
-        for (var i = 0; i < values.length; i++) {
-          if (String(values[i][1] || '').trim() === 'secret_key') {
-            var val = values[i][2];
+        var displayValues = sheet.getRange(2, 1, lastRow - 1, 4).getDisplayValues();
+        for (var i = 0; i < displayValues.length; i++) {
+          if (String(displayValues[i][1] || '').trim() === 'secret_key') {
+            var val = displayValues[i][2];
             if (val !== null && val !== undefined && String(val).trim() !== '') {
-              return String(val).trim();
+              var kStr = String(val).trim();
+              if (kStr === '87525402') kStr = '087525402';
+              return kStr;
             }
           }
         }
@@ -530,6 +534,7 @@ function getSystemSettings(ss) {
       sheet.appendRow([item.name, item.key, item.value, item.desc]);
     }
     sheet.setFrozenRows(1);
+    sheet.getRange(2, 3, DEFAULT_SETTINGS.length, 1).setNumberFormat('@');
   }
 
   var lastRow = sheet.getLastRow();
@@ -539,12 +544,17 @@ function getSystemSettings(ss) {
   }
 
   if (lastRow > 1) {
-    var values = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
-    for (var j = 0; j < values.length; j++) {
-      var kName = String(values[j][1] || '').trim();
-      var val = values[j][2];
+    sheet.getRange(2, 3, lastRow - 1, 1).setNumberFormat('@');
+    var displayValues = sheet.getRange(2, 1, lastRow - 1, 4).getDisplayValues();
+    for (var j = 0; j < displayValues.length; j++) {
+      var kName = String(displayValues[j][1] || '').trim();
+      var val = displayValues[j][2];
       if (kName) {
-        settings[kName] = (val !== null && val !== undefined) ? String(val).trim() : '';
+        var strVal = (val !== null && val !== undefined) ? String(val).trim() : '';
+        if (kName === 'secret_key' && strVal === '87525402') {
+          strVal = '087525402';
+        }
+        settings[kName] = strVal;
       }
     }
   }
@@ -574,17 +584,19 @@ function saveSystemSettings(settingsObj, key) {
     var lastRow = sheet.getLastRow();
     var existingKeys = {};
     if (lastRow > 1) {
-      var values = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
-      for (var i = 0; i < values.length; i++) {
-        var kName = String(values[i][1] || '').trim();
+      var displayValues = sheet.getRange(2, 1, lastRow - 1, 4).getDisplayValues();
+      for (var i = 0; i < displayValues.length; i++) {
+        var kName = String(displayValues[i][1] || '').trim();
         if (kName) existingKeys[kName] = i + 2;
       }
     }
 
+    sheet.getRange(2, 3, Math.max(1, lastRow), 1).setNumberFormat('@');
+
     for (var skey in settingsObj) {
       var sval = String(settingsObj[skey] || '').trim();
       if (existingKeys[skey]) {
-        sheet.getRange(existingKeys[skey], 3).setValue(sval);
+        sheet.getRange(existingKeys[skey], 3).setNumberFormat('@').setValue(sval);
       } else {
         var sname = skey;
         var sdesc = "";
@@ -596,6 +608,8 @@ function saveSystemSettings(settingsObj, key) {
           }
         }
         sheet.appendRow([sname, skey, sval, sdesc]);
+        var newRow = sheet.getLastRow();
+        sheet.getRange(newRow, 3).setNumberFormat('@').setValue(sval);
       }
     }
 

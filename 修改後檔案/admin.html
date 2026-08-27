@@ -814,6 +814,19 @@ header p {
 
         <div class="form-row">
           <div class="form-group">
+            <label for="cfg-admin-title"><i class="fa-solid fa-id-badge"></i> 維護/承辦人員職稱</label>
+            <input type="text" id="cfg-admin-title" placeholder="例：教學組長" value="教學組長">
+            <small style="color: var(--text-light);">顯示於系統底部與印領清冊承辦人簽名欄位</small>
+          </div>
+          <div class="form-group">
+            <label for="cfg-admin-name"><i class="fa-solid fa-user-gear"></i> 維護/承辦人員姓名</label>
+            <input type="text" id="cfg-admin-name" placeholder="例：蔡志益" value="蔡志益">
+            <small style="color: var(--text-light);">系統維護與印領清冊承辦人預設簽名人</small>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
             <label for="cfg-mentor-rate"><i class="fa-solid fa-user-clock"></i> 代理導師預設日薪 (元/天)</label>
             <input type="number" id="cfg-mentor-rate" value="1528">
             <small style="color: var(--text-light);">整天代理導師時之日薪計算參考基準</small>
@@ -1117,7 +1130,7 @@ header p {
           </table>
 
           <div style="display: flex; justify-content: space-between; margin-top: 2.5rem; font-size: 0.95rem; padding: 0 0.5rem;">
-            <div>承辦人：_______________</div>
+            <div id="pv-admin-sign">承辦人：_______________</div>
             <div>教務/教導主任：_______________</div>
             <div>主計主任：_______________</div>
             <div>校長：_______________</div>
@@ -2009,6 +2022,13 @@ header p {
           </tr>
         `;
 
+        const adminSignEl = document.getElementById('pv-admin-sign');
+        if (adminSignEl) {
+          const aTitle = (cfgAdminTitle && cfgAdminTitle.value.trim()) || '承辦人';
+          const aName = (cfgAdminName && cfgAdminName.value.trim()) || '_______________';
+          adminSignEl.textContent = `${aTitle}：${aName}`;
+        }
+
         printVoucherModal.style.display = 'flex';
       });
 
@@ -2127,6 +2147,8 @@ header p {
       // TAB 2: 系統全域設定 LOGIC
       // =============================================================
       const cfgSchoolName = document.getElementById('cfg-school-name');
+      const cfgAdminTitle = document.getElementById('cfg-admin-title');
+      const cfgAdminName = document.getElementById('cfg-admin-name');
       const cfgSchoolLevel = document.getElementById('cfg-school-level');
       const cfgRatePerPeriod = document.getElementById('cfg-rate-per-period');
       const cfgAcademicTerm = document.getElementById('cfg-academic-term');
@@ -2162,15 +2184,19 @@ header p {
           navSchoolName.textContent = settings.school_name;
           headerSchoolName.textContent = `${settings.school_name} - 代課管理後台`;
         }
+        if (settings.admin_title && cfgAdminTitle) cfgAdminTitle.value = settings.admin_title;
+        if (settings.admin_name && cfgAdminName) cfgAdminName.value = settings.admin_name;
         if (settings.school_level) cfgSchoolLevel.value = settings.school_level;
         if (settings.rate_per_period) cfgRatePerPeriod.value = settings.rate_per_period;
         if (settings.academic_year_term) cfgAcademicTerm.value = settings.academic_year_term;
         if (settings.mentor_daily_rate) cfgMentorRate.value = settings.mentor_daily_rate;
         if (settings.duty_items) cfgDutyItems.value = settings.duty_items;
         if (settings.secret_key) {
-          cfgSecretKey.value = settings.secret_key;
-          localStorage.setItem('gas_secret_key', settings.secret_key);
-          inputSecretKey.value = settings.secret_key;
+          let sKey = String(settings.secret_key).trim();
+          if (sKey === '87525402') sKey = '087525402';
+          cfgSecretKey.value = sKey;
+          localStorage.setItem('gas_secret_key', sKey);
+          inputSecretKey.value = sKey;
         } else {
           const stored = localStorage.getItem('gas_secret_key') || '087525402';
           cfgSecretKey.value = stored;
@@ -2194,12 +2220,20 @@ header p {
       }
 
       btnSaveGlobalSettings.addEventListener('click', () => {
-        const newKey = cfgSecretKey.value.trim() || '087525402';
-        const currentStoredKey = localStorage.getItem('gas_secret_key') || '087525402';
-        const authKey = currentStoredKey;
+        const enteredPassword = prompt('🔒 安全驗證：修改全域設定前，請輸入目前的「安全管理金鑰密碼」：');
+        if (enteredPassword === null) {
+          return; // 使用者點選取消
+        }
+        if (!enteredPassword.trim()) {
+          alert('⚠️ 請輸入安全管理金鑰密碼！');
+          return;
+        }
 
+        const newKey = cfgSecretKey.value.trim() || '087525402';
         const payload = {
           school_name: cfgSchoolName.value.trim() || '馬鳴國小',
+          admin_title: (cfgAdminTitle ? cfgAdminTitle.value.trim() : '') || '教學組長',
+          admin_name: (cfgAdminName ? cfgAdminName.value.trim() : '') || '蔡志益',
           school_level: cfgSchoolLevel.value,
           rate_per_period: cfgRatePerPeriod.value.trim() || '405',
           academic_year_term: cfgAcademicTerm.value.trim() || '114-1',
@@ -2230,7 +2264,12 @@ header p {
               btnSaveGlobalSettings.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> 儲存全域系統設定';
               alert('❌ 儲存失敗：' + err.message);
             })
-            .saveSystemSettingsData(payload, authKey);
+            .saveSystemSettingsData(payload, enteredPassword.trim());
+        } else {
+          btnSaveGlobalSettings.disabled = false;
+          btnSaveGlobalSettings.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> 儲存全域系統設定';
+          localStorage.setItem('gas_secret_key', newKey);
+          alert('本機測試：全域設定已儲存！');
         }
       });
 
