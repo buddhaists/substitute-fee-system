@@ -306,6 +306,33 @@ function saveHandoverRecord(data) {
 }
 
 /**
+ * 批次儲存多日連續交接單紀錄（伺服端直連，支援一次性寫入多天資料）
+ */
+function saveBatchHandoverRecords(recordsList) {
+  if (!Array.isArray(recordsList) || recordsList.length === 0) {
+    return { status: "error", message: "批次清單為空！" };
+  }
+  try {
+    var ss = getActiveSs();
+    var successCount = 0;
+    for (var r = 0; r < recordsList.length; r++) {
+      var item = recordsList[r];
+      var res = saveHandoverRecord(item);
+      if (res && res.status === "success") {
+        successCount++;
+      }
+    }
+    return {
+      status: "success",
+      count: successCount,
+      message: "成功批次寫入 " + successCount + " 天代課交接紀錄至 Google 試算表！"
+    };
+  } catch (err) {
+    return { status: "error", message: "批次儲存失敗：" + err.toString() };
+  }
+}
+
+/**
  * 取得學校課表資料庫（伺服端直連）
  */
 function getTimetableData() {

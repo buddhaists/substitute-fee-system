@@ -647,6 +647,10 @@ input[type="checkbox"] {
               </button>
             </div>
           </div>
+
+          <div id="multi-day-banner" style="display: none; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 0.6rem 0.85rem; border-radius: 6px; font-size: 0.85rem; color: #166534; margin-bottom: 0.85rem;">
+            <i class="fa-solid fa-layer-group"></i> <strong>連續多日模式進行中：</strong>送出時，系統將自動為您所選日期區間內的「每一天」依據該星期的班級課表各自產生交接單並計算鐘點費。
+          </div>
           
           <table class="period-table">
             <thead>
@@ -765,8 +769,38 @@ input[type="checkbox"] {
             </div>
             
             <div class="form-group">
-              <label for="input-date">代課日期</label>
-              <input type="date" id="input-date" required>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; flex-wrap: wrap; gap: 0.3rem;">
+                <label for="input-date" style="margin-bottom: 0; font-weight: 700;">
+                  <i class="fa-solid fa-calendar-day"></i> 代課日期
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; color: #0284c7; cursor: pointer; font-weight: 700; background: #e0f2fe; padding: 0.2rem 0.5rem; border-radius: 6px; border: 1px solid #bae6fd; margin-bottom: 0;">
+                  <input type="checkbox" id="chk-multi-day-mode">
+                  <span><i class="fa-solid fa-calendar-days"></i> 連續多日請假模式</span>
+                </label>
+              </div>
+
+              <!-- 單日模式選取器 -->
+              <div id="single-date-container">
+                <input type="date" id="input-date" required>
+              </div>
+
+              <!-- 連續多日模式選取器 -->
+              <div id="multi-date-container" style="display: none; background: #f0f9ff; border: 1.5px dashed #7dd3fc; padding: 0.75rem; border-radius: 8px; margin-top: 0.35rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                  <div style="flex: 1; min-width: 130px;">
+                    <small style="color: #0369a1; font-weight: 700; display: block; margin-bottom: 0.25rem;">起：起始日期</small>
+                    <input type="date" id="input-start-date" style="background: white; font-weight: 600;">
+                  </div>
+                  <div style="color: #0284c7; font-weight: bold; margin-top: 1rem;">至</div>
+                  <div style="flex: 1; min-width: 130px;">
+                    <small style="color: #0369a1; font-weight: 700; display: block; margin-bottom: 0.25rem;">訖：結束日期</small>
+                    <input type="date" id="input-end-date" style="background: white; font-weight: 600;">
+                  </div>
+                </div>
+                <div id="multi-day-summary" style="font-size: 0.82rem; color: #0369a1; margin-top: 0.5rem; font-weight: 600; line-height: 1.4;">
+                  <i class="fa-solid fa-circle-info"></i> 請選擇起始與結束日期（系統自動排除週六日）
+                </div>
+              </div>
             </div>
             
             <div class="form-row">
@@ -1479,8 +1513,89 @@ input[type="checkbox"] {
         window.print();
       });
 
-      // Submit to Google Sheet (支援單日送出與連續代課順延至明日)
+      // =============================================================
+      // 連續多日請假模式 (Date Range Picker & Batch Submission)
+      // =============================================================
+      const chkMultiDayMode = document.getElementById('chk-multi-day-mode');
+      const singleDateContainer = document.getElementById('single-date-container');
+      const multiDateContainer = document.getElementById('multi-date-container');
+      const inputStartDate = document.getElementById('input-start-date');
+      const inputEndDate = document.getElementById('input-end-date');
+      const multiDaySummary = document.getElementById('multi-day-summary');
+      const multiDayBanner = document.getElementById('multi-day-banner');
       const btnSubmitAndNextDay = document.getElementById('btn-submit-and-next-day');
+
+      function getWorkingDaysInRange(startStr, endStr) {
+        if (!startStr || !endStr) return [];
+        const days = [];
+        const current = new Date(startStr.replace(/-/g, '/'));
+        const end = new Date(endStr.replace(/-/g, '/'));
+        const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+        while (current <= end) {
+          const dayOfWeek = current.getDay();
+          if (dayOfWeek !== 0 && dayOfWeek !== 6) { // 排除週六、週日
+            const y = current.getFullYear();
+            const m = String(current.getMonth() + 1).padStart(2, '0');
+            const d = String(current.getDate()).padStart(2, '0');
+            days.push({
+              dateStr: `${y}-${m}-${d}`,
+              dayOfWeek: dayOfWeek,
+              weekdayName: weekdays[dayOfWeek]
+            });
+          }
+          current.setDate(current.getDate() + 1);
+        }
+        return days;
+      }
+
+      function updateMultiDaySummary() {
+        const start = inputStartDate.value;
+        const end = inputEndDate.value;
+        if (!start || !end) {
+          multiDaySummary.innerHTML = '<i class="fa-solid fa-circle-info"></i> 請選擇起始與結束日期（系統自動排除週六日）';
+          return;
+        }
+        if (start > end) {
+          multiDaySummary.innerHTML = '<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> 結束日期不能早於起始日期！</span>';
+          return;
+        }
+        const workingDays = getWorkingDaysInRange(start, end);
+        if (workingDays.length === 0) {
+          multiDaySummary.innerHTML = '<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> 所選區間皆為週末，無上課日！</span>';
+          return;
+        }
+        const listText = workingDays.map(d => `${d.dateStr} (${d.weekdayName})`).join('、');
+        multiDaySummary.innerHTML = `✅ 已選取 <strong>${workingDays.length} 個上課日</strong>：<br><span style="color:#0f766e;">${listText}</span>`;
+        inputDate.value = start;
+        autoFillTimetable();
+      }
+
+      if (chkMultiDayMode) {
+        chkMultiDayMode.addEventListener('change', () => {
+          const isMulti = chkMultiDayMode.checked;
+          if (isMulti) {
+            singleDateContainer.style.display = 'none';
+            multiDateContainer.style.display = 'block';
+            multiDayBanner.style.display = 'block';
+            if (btnSubmitAndNextDay) btnSubmitAndNextDay.style.display = 'none';
+            btnSubmit.innerHTML = '<i class="fa-solid fa-layer-group"></i> 2. 一鍵批次送出多日交接單 (存入雲端)';
+            
+            if (!inputStartDate.value) inputStartDate.value = inputDate.value;
+            if (!inputEndDate.value) inputEndDate.value = getNextWorkingDate(inputDate.value);
+            updateMultiDaySummary();
+          } else {
+            singleDateContainer.style.display = 'block';
+            multiDateContainer.style.display = 'none';
+            multiDayBanner.style.display = 'none';
+            if (btnSubmitAndNextDay) btnSubmitAndNextDay.style.display = 'block';
+            btnSubmit.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 2. 送出交接單 (存入雲端資料庫)';
+            autoFillTimetable();
+          }
+        });
+
+        inputStartDate.addEventListener('change', updateMultiDaySummary);
+        inputEndDate.addEventListener('change', updateMultiDaySummary);
+      }
 
       function getNextWorkingDate(currentDateStr) {
         if (!currentDateStr) {
@@ -1489,7 +1604,6 @@ input[type="checkbox"] {
         }
         const d = new Date(currentDateStr.replace(/-/g, '/'));
         d.setDate(d.getDate() + 1);
-        // 若為週六 (6) 聰明跳過週末至週一；若為週日 (0) 跳至週一
         if (d.getDay() === 6) {
           d.setDate(d.getDate() + 2);
         } else if (d.getDay() === 0) {
@@ -1508,6 +1622,142 @@ input[type="checkbox"] {
           return;
         }
 
+        const isMultiDay = chkMultiDayMode && chkMultiDayMode.checked;
+
+        // =========================================================
+        // 分支 A: 連續多日請假模式（批次建立多天交接單）
+        // =========================================================
+        if (isMultiDay) {
+          const start = inputStartDate.value;
+          const end = inputEndDate.value;
+          if (!start || !end) {
+            alert('請完整選擇起始日期與結束日期！');
+            return;
+          }
+          if (start > end) {
+            alert('結束日期不能早於起始日期！');
+            return;
+          }
+          const workingDays = getWorkingDaysInRange(start, end);
+          if (workingDays.length === 0) {
+            alert('所選日期區間內無任何上課日 (週一至週五)！');
+            return;
+          }
+
+          const isDaily = chkMentorDaily.checked;
+          const confirmMsg = `確定要為【${absentTeacher}】老師在 ${workingDays.length} 個上課日（${workingDays[0].dateStr} 至 ${workingDays[workingDays.length - 1].dateStr}）一次性批次建立並送出代課交接單嗎？\n\n` +
+            `• 班級：${inputClass.value}\n` +
+            `• 代課教師：${inputSubTeacher.value.trim()}\n` +
+            `• 假別：${selectLeaveType.value}\n` +
+            `• 計費模式：${isDaily ? '整天代理導師費 (由後台結算)' : '依各日課表節數核算鐘點費'}`;
+
+          if (!confirm(confirmMsg)) return;
+
+          btnSubmit.disabled = true;
+          btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 多日資料批次上傳中...';
+
+          const batchPayloads = [];
+          const classTimetable = TIMETABLE_DATABASE[inputClass.value] || {};
+
+          workingDays.forEach((dayInfo, idx) => {
+            const dayNum = dayInfo.dayOfWeek;
+            const daySchedule = classTimetable[dayNum] || {};
+            const periodsDetail = [];
+            let periodsCount = 0;
+
+            for (let p = 1; p <= 7; p++) {
+              const pInfo = daySchedule[p];
+              const subj = (pInfo && pInfo.subject) ? pInfo.subject : '';
+              if (isDaily || subj) {
+                periodsCount++;
+                periodsDetail.push({
+                  period: String(p),
+                  paid: true,
+                  subject: subj || '課堂指導',
+                  handover: ''
+                });
+              }
+            }
+
+            // 作息指導項目
+            if (isDaily) {
+              ['早修', '打掃', '午餐', '午休', '放學'].forEach(item => {
+                periodsDetail.push({
+                  period: item,
+                  paid: false,
+                  subject: item + '指導',
+                  handover: ''
+                });
+              });
+            }
+
+            const classFee = isDaily ? 0 : periodsCount * CURRENT_RATE;
+            batchPayloads.push({
+              id: (Date.now() + idx).toString(),
+              date: dayInfo.dateStr,
+              school: inputSchool.value.trim(),
+              level: 'elementary',
+              absentTeacher: absentTeacher,
+              subTeacher: inputSubTeacher.value.trim(),
+              className: inputClass.value,
+              leaveType: selectLeaveType.value,
+              periodsCount: periodsCount,
+              rate: CURRENT_RATE,
+              classFee: classFee,
+              totalFee: classFee,
+              payMode: isDaily ? 'mentorDaily' : 'perPeriod',
+              payNote: isDaily ? '整天代理(導師費)，金額由後臺自行計算' : '',
+              periodsDetail: periodsDetail
+            });
+          });
+
+          const onBatchSuccess = (res) => {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = '<i class="fa-solid fa-layer-group"></i> 2. 一鍵批次送出多日交接單 (存入雲端)';
+            alert(`🎉 成功為您一鍵建立並送出 ${workingDays.length} 天代課交接單！\n\n日期清單：\n${workingDays.map(d => d.dateStr).join('、')}`);
+            // 重設表單
+            selectAbsentTeacher.value = '';
+            inputAbsentTeacherCustom.value = '';
+            inputAbsentTeacherCustom.style.display = 'none';
+            chkMentorDaily.checked = false;
+            chkMultiDayMode.checked = false;
+            singleDateContainer.style.display = 'block';
+            multiDateContainer.style.display = 'none';
+            multiDayBanner.style.display = 'none';
+            if (btnSubmitAndNextDay) btnSubmitAndNextDay.style.display = 'block';
+            btnSubmit.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> 2. 送出交接單 (存入雲端資料庫)';
+            autoFillTimetable();
+          };
+
+          if (isGasEnv) {
+            google.script.run
+              .withSuccessHandler((res) => {
+                if (res && res.status === 'success') {
+                  onBatchSuccess(res);
+                } else {
+                  btnSubmit.disabled = false;
+                  btnSubmit.innerHTML = '<i class="fa-solid fa-layer-group"></i> 2. 一鍵批次送出多日交接單 (存入雲端)';
+                  alert('❌ 批次上傳失敗：' + (res ? res.message : '未知錯誤'));
+                }
+              })
+              .withFailureHandler((err) => {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = '<i class="fa-solid fa-layer-group"></i> 2. 一鍵批次送出多日交接單 (存入雲端)';
+                alert('❌ 批次上傳發生錯誤：' + err.message);
+              })
+              .saveBatchHandoverRecords(batchPayloads);
+            return;
+          } else {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = '<i class="fa-solid fa-layer-group"></i> 2. 一鍵批次送出多日交接單 (存入雲端)';
+            alert(`本機測試：已成功批次產製 ${batchPayloads.length} 筆多日交接單！`);
+            return;
+          }
+        }
+
+        // =========================================================
+        // 分支 B: 單日模式（含順延至明日模式）
+        // =========================================================
         const calc = calculateCurrentFee();
         if (calc.periodsCount === 0) {
           alert('請至少勾選一節課再送出！');
@@ -1519,7 +1769,6 @@ input[type="checkbox"] {
         activeBtn.disabled = true;
         activeBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 資料上傳中...';
 
-        // Extract periods details
         const periodsDetail = [];
         document.querySelectorAll('#schedule-tbody tr').forEach(row => {
           if (row.querySelector('input[type="checkbox"]').checked) {
@@ -1559,15 +1808,12 @@ input[type="checkbox"] {
             const nextDate = getNextWorkingDate(submittedDate);
             inputDate.value = nextDate;
             
-            // 清空課堂交代事項文字
             document.querySelectorAll('#schedule-tbody tr').forEach(row => {
               row.cells[4].querySelector('input').value = '';
             });
 
-            // 重新帶入明日對應課表
             autoFillTimetable();
 
-            // 若為整天代理，自動將明日所有課表全選
             if (chkMentorDaily.checked) {
               document.querySelectorAll('#schedule-tbody input[type="checkbox"]').forEach(cb => cb.checked = true);
               calculateCurrentFee();
@@ -1576,7 +1822,6 @@ input[type="checkbox"] {
             alert(`🎉 【${submittedDate}】交接單已成功送出！\n\n已自動為您切換至明日【${nextDate}】，並已帶入明日課表。\n請確認課堂事項後即可再次送出。`);
           } else {
             alert('🎉 資料已成功寫入 Google 試算表雲端資料庫！');
-            // 普通重設
             selectAbsentTeacher.value = '';
             inputAbsentTeacherCustom.value = '';
             inputAbsentTeacherCustom.style.display = 'none';
@@ -1591,7 +1836,6 @@ input[type="checkbox"] {
           }
         };
 
-        // 1. 如果在 GAS 環境中，使用 google.script.run 直連
         if (isGasEnv) {
           google.script.run
             .withSuccessHandler((res) => {
@@ -1612,7 +1856,6 @@ input[type="checkbox"] {
           return;
         }
 
-        // 2. 如果在外部環境，使用 HTTP fetch
         const url = localStorage.getItem('gas_web_app_url');
         if (!url) {
           activeBtn.disabled = false;
