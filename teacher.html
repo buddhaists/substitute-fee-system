@@ -1136,6 +1136,8 @@ input[type="checkbox"] {
     document.addEventListener('DOMContentLoaded', () => {
       // Elements
       const inputDate = document.getElementById('input-date');
+      const inputStartDate = document.getElementById('input-start-date');
+      const inputEndDate = document.getElementById('input-end-date');
       const inputSchool = document.getElementById('input-school');
       const displayRateBadge = document.getElementById('display-rate-badge');
       const selectAbsentTeacher = document.getElementById('select-absent-teacher');
@@ -1682,8 +1684,7 @@ input[type="checkbox"] {
       // =============================================================
       // 代課起訖日期自選邏輯 (Date Range Picker & Auto Mode Switch)
       // =============================================================
-      const inputStartDate = document.getElementById('input-start-date');
-      const inputEndDate = document.getElementById('input-end-date');
+      // 注意: inputStartDate / inputEndDate 已在 DOMContentLoaded 頂部宣告，此處不重複宣告
       const multiDaySummary = document.getElementById('multi-day-summary');
       const multiDayBanner = document.getElementById('multi-day-banner');
       const btnSubmitAndNextDay = document.getElementById('btn-submit-and-next-day');
@@ -1755,6 +1756,8 @@ input[type="checkbox"] {
         inputDate.value = start;
         autoFillTimetable();
       }
+      // 讓外部的 window.setQuickDaysRange 可呼叫到此函式
+      window.updateMultiDaySummary = updateMultiDaySummary;
 
       inputStartDate.addEventListener('change', updateMultiDaySummary);
       inputStartDate.addEventListener('input', updateMultiDaySummary);
