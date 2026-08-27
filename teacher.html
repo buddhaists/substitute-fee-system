@@ -1116,9 +1116,13 @@ input[type="checkbox"] {
           cur.setDate(cur.getDate() + 1);
         }
       }
-      if (inputEndDate) inputEndDate.value = lastWorkingDateStr;
-      if (typeof updateMultiDaySummary === 'function') {
-        updateMultiDaySummary();
+      if (inputEndDate) {
+        inputEndDate.value = lastWorkingDateStr;
+        inputEndDate.dispatchEvent(new Event('change'));
+        inputEndDate.dispatchEvent(new Event('input'));
+      }
+      if (typeof window.updateMultiDaySummary === 'function') {
+        window.updateMultiDaySummary();
       }
     };
 
