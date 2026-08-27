@@ -27,8 +27,8 @@ var SETTINGS_HEADERS = ["項目名稱(Name)", "設定代碼(Key)", "設定值(Va
 
 var DEFAULT_SETTINGS = [
   { name: "學校名稱", key: "school_name", value: "馬鳴國小", desc: "系統全銜與印領清冊抬頭" },
-  { name: "維護人員職稱", key: "admin_title", value: "教學組長", desc: "系統維護與承辦人員職稱" },
-  { name: "維護人員姓名", key: "admin_name", value: "蔡志益", desc: "系統維護與承辦人員姓名" },
+  { name: "系統維護人員職稱", key: "maintainer_title", value: "資訊執秘", desc: "負責系統運作維護/網管人員職稱" },
+  { name: "系統維護人員姓名", key: "maintainer_name", value: "蔡志益", desc: "負責系統運作維護/網管人員姓名" },
   { name: "教育階段", key: "school_level", value: "elementary", desc: "elementary(國小) / junior(國中) / senior(高中)" },
   { name: "單節鐘點費率", key: "rate_per_period", value: "405", desc: "國小 405 元/節 (依教育部函文)" },
   { name: "學年學期", key: "academic_year_term", value: "114-1", desc: "當前運行的學年與學期" },

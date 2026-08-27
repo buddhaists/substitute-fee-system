@@ -812,16 +812,25 @@ header p {
           </div>
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label for="cfg-admin-title"><i class="fa-solid fa-id-badge"></i> 維護/承辦人員職稱</label>
-            <input type="text" id="cfg-admin-title" placeholder="例：教學組長" value="教學組長">
-            <small style="color: var(--text-light);">顯示於系統底部與印領清冊承辦人簽名欄位</small>
+        <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem;">
+          <div style="font-weight: 700; color: #166534; font-size: 0.95rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fa-solid fa-server" style="color: #15803d;"></i> 系統運作與網管維護人員資訊 (System Maintainer)
           </div>
-          <div class="form-group">
-            <label for="cfg-admin-name"><i class="fa-solid fa-user-gear"></i> 維護/承辦人員姓名</label>
-            <input type="text" id="cfg-admin-name" placeholder="例：蔡志益" value="蔡志益">
-            <small style="color: var(--text-light);">系統維護與印領清冊承辦人預設簽名人</small>
+          <div class="form-row" style="margin-bottom: 0;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="cfg-maintainer-title" style="color: #14532d; font-weight: 700;">
+                <i class="fa-solid fa-id-badge"></i> 系統維護人員職稱 (網管/資訊)
+              </label>
+              <input type="text" id="cfg-maintainer-title" placeholder="例：資訊執秘、網管人員" value="資訊執秘" style="background: white; font-weight: 600;">
+              <small style="color: #15803d;">負責本系統運作維護、伺服器與權限之資訊/網管人員職稱</small>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="cfg-maintainer-name" style="color: #14532d; font-weight: 700;">
+                <i class="fa-solid fa-user-gear"></i> 系統維護人員姓名
+              </label>
+              <input type="text" id="cfg-maintainer-name" placeholder="例：蔡志益" value="蔡志益" style="background: white; font-weight: 600;">
+              <small style="color: #15803d;">系統運作維護窗口負責人姓名，顯示於系統頁尾與維護資訊</small>
+            </div>
           </div>
         </div>
 
@@ -1027,7 +1036,13 @@ header p {
 
     </div>
 
-    <!-- SETTINGS MODAL -->
+    <!-- 系統維護人員頁尾資訊 -->
+    <footer style="text-align: center; padding: 1.5rem 1rem; margin-top: 2rem; border-top: 1px solid var(--border-color); color: var(--text-light); font-size: 0.85rem;">
+      <div><span id="footer-school-name">馬鳴國小</span> · 代課費計算與管理系統</div>
+      <div style="margin-top: 0.35rem;">
+        <i class="fa-solid fa-server" style="color: #10b981;"></i> 系統運作與網管維護：<strong id="footer-maintainer" style="color: var(--text-dark);">資訊執秘 蔡志益</strong>
+      </div>
+    </footer>
     <div class="modal-overlay" id="settings-modal">
       <div class="modal">
         <div class="modal-title">
@@ -2147,8 +2162,8 @@ header p {
       // TAB 2: 系統全域設定 LOGIC
       // =============================================================
       const cfgSchoolName = document.getElementById('cfg-school-name');
-      const cfgAdminTitle = document.getElementById('cfg-admin-title');
-      const cfgAdminName = document.getElementById('cfg-admin-name');
+      const cfgMaintainerTitle = document.getElementById('cfg-maintainer-title');
+      const cfgMaintainerName = document.getElementById('cfg-maintainer-name');
       const cfgSchoolLevel = document.getElementById('cfg-school-level');
       const cfgRatePerPeriod = document.getElementById('cfg-rate-per-period');
       const cfgAcademicTerm = document.getElementById('cfg-academic-term');
@@ -2160,6 +2175,8 @@ header p {
       const btnSaveGlobalSettings = document.getElementById('btn-save-global-settings');
       const navSchoolName = document.getElementById('nav-school-name');
       const headerSchoolName = document.getElementById('header-school-name');
+      const footerSchoolName = document.getElementById('footer-school-name');
+      const footerMaintainer = document.getElementById('footer-maintainer');
 
       // 密碼顯示/隱藏切換
       if (btnToggleSecretKey && cfgSecretKey && iconToggleSecretKey) {
@@ -2183,9 +2200,15 @@ header p {
           cfgSchoolName.value = settings.school_name;
           navSchoolName.textContent = settings.school_name;
           headerSchoolName.textContent = `${settings.school_name} - 代課管理後台`;
+          if (footerSchoolName) footerSchoolName.textContent = settings.school_name;
         }
-        if (settings.admin_title && cfgAdminTitle) cfgAdminTitle.value = settings.admin_title;
-        if (settings.admin_name && cfgAdminName) cfgAdminName.value = settings.admin_name;
+        
+        const mTitle = settings.maintainer_title || settings.admin_title || '資訊執秘';
+        const mName = settings.maintainer_name || settings.admin_name || '蔡志益';
+        if (cfgMaintainerTitle) cfgMaintainerTitle.value = mTitle;
+        if (cfgMaintainerName) cfgMaintainerName.value = mName;
+        if (footerMaintainer) footerMaintainer.textContent = `${mTitle} ${mName}`;
+
         if (settings.school_level) cfgSchoolLevel.value = settings.school_level;
         if (settings.rate_per_period) cfgRatePerPeriod.value = settings.rate_per_period;
         if (settings.academic_year_term) cfgAcademicTerm.value = settings.academic_year_term;
@@ -2230,10 +2253,13 @@ header p {
         }
 
         const newKey = cfgSecretKey.value.trim() || '087525402';
+        const mTitle = (cfgMaintainerTitle ? cfgMaintainerTitle.value.trim() : '') || '資訊執秘';
+        const mName = (cfgMaintainerName ? cfgMaintainerName.value.trim() : '') || '蔡志益';
+
         const payload = {
           school_name: cfgSchoolName.value.trim() || '馬鳴國小',
-          admin_title: (cfgAdminTitle ? cfgAdminTitle.value.trim() : '') || '教學組長',
-          admin_name: (cfgAdminName ? cfgAdminName.value.trim() : '') || '蔡志益',
+          maintainer_title: mTitle,
+          maintainer_name: mName,
           school_level: cfgSchoolLevel.value,
           rate_per_period: cfgRatePerPeriod.value.trim() || '405',
           academic_year_term: cfgAcademicTerm.value.trim() || '114-1',
