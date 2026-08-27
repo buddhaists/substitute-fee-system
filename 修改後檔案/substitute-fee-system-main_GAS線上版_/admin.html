@@ -555,7 +555,7 @@ header p {
         <i class="fa-solid fa-calendar-check"></i> 1. 代課核銷結算
       </button>
       <button class="admin-tab-btn" data-tab="tab-settings">
-        <i class="fa-solid fa-sliders"></i> 2. 系統全域設定
+        <i class="fa-solid fa-sliders"></i> 2. 系統全域設定 <i class="fa-solid fa-lock" style="font-size: 0.75rem; opacity: 0.7; margin-left: 0.25rem;"></i>
       </button>
       <button class="admin-tab-btn" data-tab="tab-timetable">
         <i class="fa-solid fa-calendar-week"></i> 3. 全校課表管理與匯入
@@ -1277,13 +1277,34 @@ header p {
     const isGasEnv = typeof google !== 'undefined' && google.script && google.script.run;
 
     document.addEventListener('DOMContentLoaded', () => {
-      // Tab Navigation
+      // Tab Navigation (進入系統全域設定需驗證管理密碼)
       const tabBtns = document.querySelectorAll('.admin-tab-btn');
       const tabPanes = document.querySelectorAll('.tab-pane');
+      let isSettingsTabUnlocked = false;
 
       tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
           const targetTab = btn.getAttribute('data-tab');
+
+          // 若欲進入「系統全域設定」分頁，且尚未通過解鎖驗證
+          if (targetTab === 'tab-settings' && !isSettingsTabUnlocked) {
+            const validKey = localStorage.getItem('gas_secret_key') || '087525402';
+            const entered = prompt('🔒 權限驗證：進入「全校系統全域參數設定」需管理權限，請輸入安全管理金鑰密碼：');
+            if (entered === null) {
+              return; // 使用者按取消，留在原分頁
+            }
+            if (!entered.trim()) {
+              alert('⚠️ 請輸入安全管理金鑰密碼！');
+              return;
+            }
+            if (entered.trim() !== validKey) {
+              alert('❌ 密碼錯誤！無法進入系統全域設定頁面。');
+              return;
+            }
+            // 驗證成功，解鎖本次工作階段
+            isSettingsTabUnlocked = true;
+          }
+
           tabBtns.forEach(b => b.classList.remove('active'));
           tabPanes.forEach(p => p.classList.remove('active'));
           btn.classList.add('active');
