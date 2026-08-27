@@ -517,17 +517,17 @@ header p {
     
     <!-- 全域頂部導航選單 (Top Navigation Menu) -->
     <nav class="top-navbar">
-      <a href="<?= appUrl ?>" class="nav-brand" target="_top">
+      <a href="<?= appUrl ?>" class="nav-brand" target="_top" onclick="navTo(''); return false;">
         <i class="fa-solid fa-graduation-cap"></i> <span id="nav-school-name">代課系統</span>
       </a>
       <div class="nav-menu">
-        <a href="<?= appUrl ?>" class="nav-item" target="_top">
+        <a href="<?= appUrl ?>" class="nav-item" target="_top" onclick="navTo(''); return false;">
           <i class="fa-solid fa-house"></i> 首頁入口
         </a>
-        <a href="<?= appUrl ?>?page=teacher" class="nav-item" target="_top">
+        <a href="<?= appUrl ?>?page=teacher" class="nav-item" target="_top" onclick="navTo('teacher'); return false;">
           <i class="fa-solid fa-file-signature"></i> 教師交接端
         </a>
-        <a href="<?= appUrl ?>?page=admin" class="nav-item active" target="_top">
+        <a href="<?= appUrl ?>?page=admin" class="nav-item active" target="_top" onclick="navTo('admin'); return false;">
           <i class="fa-solid fa-calculator"></i> 行政核銷端
         </a>
       </div>
@@ -1265,13 +1265,17 @@ header p {
   <!-- Javascript Logic for Admin Page -->
   <script>
     function navTo(page) {
-      let baseUrl = window.location.href.split('?')[0];
-      let target = page ? `${baseUrl}?page=${page}` : baseUrl;
-      if (window.top) {
-        window.top.location.href = target;
-      } else {
-        window.location.href = target;
-      }
+      var serverUrl = "<?= appUrl ?>";
+      var baseUrl = (serverUrl && serverUrl.indexOf('http') === 0) ? serverUrl.split('?')[0] : window.location.href.split('?')[0];
+      baseUrl = baseUrl.replace(/\/userCodeAppPanel$/, '');
+      var target = page ? (baseUrl + '?page=' + page) : baseUrl;
+      try {
+        if (window.top && window.top.location) {
+          window.top.location.href = target;
+          return;
+        }
+      } catch (e) {}
+      window.location.href = target;
     }
 
     const isGasEnv = typeof google !== 'undefined' && google.script && google.script.run;
