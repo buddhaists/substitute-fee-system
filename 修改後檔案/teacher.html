@@ -1614,27 +1614,28 @@ input[type="checkbox"] {
           }
         });
 
+        const schoolName = inputSchool.value.trim() || '學校代課系統';
         const feeLine = calc.mentorDaily
-          ? '• 費用計算：整天代理（改領導師費，金額由後臺自行計算）'
-          : `• 預估金額：${calc.periodsCount} 節 × ${RATE} 元 = $${calc.totalFee.toLocaleString()}`;
+          ? '💰 費用計算：整天代理導師（日薪，後臺依規核發）'
+          : `💰 課堂鐘點：${calc.periodsCount} 節（每節 $${CURRENT_RATE}）合計 $${calc.totalFee.toLocaleString()}`;
 
-        const backupText = `[交接單備份] ${dateStr}｜${className}代課交接
-
-【交接明細】
-• 請假教師：${absent}
-• 代課教師：${sub}
-• 假別：${selectLeaveType.value}
+        const backupText = `📌【${schoolName} 代課與交接通知】
+📅 日期：${dateStr}
+🏫 班級：${className}
+👨‍🏫 請假教師：${absent}
+🧑‍🏫 代課教師：${sub}
+🏷️ 請假假別：${selectLeaveType.value}
 ${feeLine}
 
-【詳細課堂交代事項】
-${details.length > 0 ? details.join('\n') : '無特別勾選課堂'}
+📋【課堂交代與作息指導事項】
+${details.length > 0 ? details.join('\n') : '• 無特定勾選項目'}
 
----
-馬鳴國小代課費與交接單系統`;
+-----------------------------
+由 ${schoolName} 代課系統自動產製`;
 
         try {
           await navigator.clipboard.writeText(backupText);
-          alert('✅ 已複製交接內容到剪貼簿！\n可直接貼到 Gmail、LINE 或備忘錄留底。');
+          alert('✅ 已複製 LINE 格式交接內容到剪貼簿！\n可直接貼到 LINE 群組、Gmail 或備忘錄留底。');
         } catch (err) {
           const ta = document.createElement('textarea');
           ta.value = backupText;

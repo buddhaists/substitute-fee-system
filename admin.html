@@ -494,6 +494,16 @@ header p {
   background: var(--primary-color);
   color: white;
 }
+.filter-chip {
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.filter-chip.active {
+  background: var(--primary-color) !important;
+  color: white !important;
+  border-color: var(--primary-color) !important;
+  font-weight: 700;
+}
   </style>
 </head>
 <body>
@@ -561,12 +571,23 @@ header p {
       <section class="panel">
         <div class="panel-title" style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
           <span><i class="fa-solid fa-calendar-days"></i> 月度核銷結算面板</span>
-          <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-            <label for="select-month" style="margin-bottom: 0; font-size: 0.95rem;">結算月份：</label>
-            <input type="month" id="select-month" style="width: auto; padding: 0.4rem 0.6rem;">
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            <label for="select-month" style="margin-bottom: 0; font-size: 0.95rem; font-weight: 600;">結算月份：</label>
+            <div style="display: flex; align-items: center; gap: 0.25rem;">
+              <button type="button" class="btn btn-outline" id="btn-prev-month" title="切換至上一月" style="padding: 0.35rem 0.6rem; font-size: 0.85rem;">
+                <i class="fa-solid fa-chevron-left"></i> 上月
+              </button>
+              <input type="month" id="select-month" style="width: auto; padding: 0.35rem 0.6rem; font-weight: 600;">
+              <button type="button" class="btn btn-outline" id="btn-next-month" title="切換至下一月" style="padding: 0.35rem 0.6rem; font-size: 0.85rem;">
+                下月 <i class="fa-solid fa-chevron-right"></i>
+              </button>
+              <button type="button" class="btn btn-outline" id="btn-curr-month" title="回到本月" style="padding: 0.35rem 0.6rem; font-size: 0.85rem;">
+                本月
+              </button>
+            </div>
             
-            <button class="btn btn-success" id="btn-sync-cloud" style="padding: 0.45rem 1rem;">
-              <i class="fa-solid fa-rotate"></i> 從雲端同步資料
+            <button class="btn btn-success" id="btn-sync-cloud" style="padding: 0.4rem 0.9rem;">
+              <i class="fa-solid fa-rotate"></i> 同步資料
             </button>
             
             <span class="refresh-badge" id="sync-status-badge">
@@ -679,18 +700,23 @@ header p {
             </div>
           </div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; background: #f8fafc; padding: 0.4rem 0.75rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.85rem;">
-            <div style="display: flex; align-items: center; gap: 0.4rem;">
-              <label style="display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0; cursor: pointer;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; background: #f8fafc; padding: 0.45rem 0.75rem; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.85rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+              <label style="display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0; cursor: pointer; font-weight: 600;">
                 <input type="checkbox" id="chk-all-details">
                 <span>全選目前明細</span>
               </label>
+              <div style="display: flex; gap: 0.25rem;">
+                <button type="button" class="btn btn-outline filter-chip active" data-status-filter="all" style="font-size: 0.75rem; padding: 0.15rem 0.55rem; border-radius: 9999px;">全部</button>
+                <button type="button" class="btn btn-outline filter-chip" data-status-filter="pending" style="font-size: 0.75rem; padding: 0.15rem 0.55rem; border-radius: 9999px;">⏳ 待核對</button>
+                <button type="button" class="btn btn-outline filter-chip" data-status-filter="confirmed" style="font-size: 0.75rem; padding: 0.15rem 0.55rem; border-radius: 9999px;">✅ 已核銷</button>
+              </div>
             </div>
             <div style="display: flex; gap: 0.4rem;">
-              <button type="button" class="btn btn-outline" id="btn-batch-confirm" style="font-size: 0.78rem; padding: 0.25rem 0.6rem; color: #16a34a; border-color: #86efac;">
+              <button type="button" class="btn btn-outline" id="btn-batch-confirm" style="font-size: 0.78rem; padding: 0.25rem 0.6rem; color: #16a34a; border-color: #86efac; background: white;">
                 <i class="fa-solid fa-circle-check"></i> 標記為已核銷
               </button>
-              <button type="button" class="btn btn-outline" id="btn-batch-unconfirm" style="font-size: 0.78rem; padding: 0.25rem 0.6rem; color: #64748b; border-color: #cbd5e1;">
+              <button type="button" class="btn btn-outline" id="btn-batch-unconfirm" style="font-size: 0.78rem; padding: 0.25rem 0.6rem; color: #64748b; border-color: #cbd5e1; background: white;">
                 <i class="fa-solid fa-clock-rotate-left"></i> 標記為待核對
               </button>
             </div>
@@ -1259,6 +1285,50 @@ header p {
         return teacherMap;
       }
 
+      // Month Switcher Elements
+      const btnPrevMonth = document.getElementById('btn-prev-month');
+      const btnNextMonth = document.getElementById('btn-next-month');
+      const btnCurrMonth = document.getElementById('btn-curr-month');
+
+      function shiftMonth(offset) {
+        if (!selectMonth.value) {
+          const now = new Date();
+          selectMonth.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        }
+        const parts = selectMonth.value.split('-');
+        let year = parseInt(parts[0], 10);
+        let month = parseInt(parts[1], 10) + offset;
+        if (month > 12) {
+          year++;
+          month = 1;
+        } else if (month < 1) {
+          year--;
+          month = 12;
+        }
+        selectMonth.value = `${year}-${String(month).padStart(2, '0')}`;
+        syncCloudData(true);
+      }
+
+      if (btnPrevMonth) btnPrevMonth.addEventListener('click', () => shiftMonth(-1));
+      if (btnNextMonth) btnNextMonth.addEventListener('click', () => shiftMonth(1));
+      if (btnCurrMonth) btnCurrMonth.addEventListener('click', () => {
+        const now = new Date();
+        selectMonth.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        syncCloudData(true);
+      });
+
+      // Status Filter Chips
+      let currentStatusFilter = 'all';
+      const statusFilterChips = document.querySelectorAll('.filter-chip[data-status-filter]');
+      statusFilterChips.forEach(chip => {
+        chip.addEventListener('click', () => {
+          statusFilterChips.forEach(c => c.classList.remove('active'));
+          chip.classList.add('active');
+          currentStatusFilter = chip.getAttribute('data-status-filter');
+          renderDetailTable();
+        });
+      });
+
       function renderDashboard() {
         const teacherMap = getTeacherAggregates();
         const teachers = Object.keys(teacherMap).sort();
@@ -1281,12 +1351,13 @@ header p {
         monthStatMentorFee.textContent = `$${grandMentorFee.toLocaleString()}`;
         monthStatTotal.textContent = `$${grandTotalFee.toLocaleString()}`;
 
-        // 1. 渲染左側彙整表
+        // 1. 渲染左側彙整表 (使用 DocumentFragment 提升渲染效能)
         if (teachers.length === 0) {
           summaryTbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-light); padding: 2rem;">當月無任何代課紀錄</td></tr>';
           summaryTfoot.style.display = 'none';
         } else {
           summaryTbody.innerHTML = '';
+          const frag = document.createDocumentFragment();
           teachers.forEach(t => {
             const data = teacherMap[t];
             const isFiltered = currentFilterTeacher === t;
@@ -1308,8 +1379,9 @@ header p {
                 $${data.totalFee.toLocaleString()}
               </td>
             `;
-            summaryTbody.appendChild(tr);
+            frag.appendChild(tr);
           });
+          summaryTbody.appendChild(frag);
 
           // 彙整表底部「全校總計」列
           footTotalPeriods.textContent = `${grandPeriods} 節`;
@@ -1372,6 +1444,16 @@ header p {
           if (currentFilterTeacher && String(rec.subTeacher || '').trim() !== currentFilterTeacher) {
             return false;
           }
+
+          // 狀態篩選 (待核對 / 已核銷)
+          let hasConfirmed = false;
+          if (rec.periodsDetail && rec.periodsDetail.length > 0) {
+            hasConfirmed = rec.periodsDetail.some(p => p.status === '已核銷' || p.status === '已確認');
+          }
+          if (currentStatusFilter === 'confirmed' && !hasConfirmed) return false;
+          if (currentStatusFilter === 'pending' && hasConfirmed) return false;
+
+          // 關鍵字搜尋
           if (query) {
             const matchText = `${rec.date} ${rec.className} ${rec.absentTeacher} ${rec.subTeacher}`.toLowerCase();
             if (!matchText.includes(query)) return false;
@@ -1383,8 +1465,8 @@ header p {
         if (currentFilterTeacher) {
           detailCountBadge.innerHTML = `正在篩選：<strong>${currentFilterTeacher}</strong> (${filtered.length}/${allRecords.length} 筆)`;
           btnClearFilter.style.display = 'inline-flex';
-        } else if (query) {
-          detailCountBadge.innerHTML = `搜尋關鍵字 (${filtered.length}/${allRecords.length} 筆)`;
+        } else if (query || currentStatusFilter !== 'all') {
+          detailCountBadge.innerHTML = `篩選結果 (${filtered.length}/${allRecords.length} 筆)`;
           btnClearFilter.style.display = 'inline-flex';
         } else {
           detailCountBadge.textContent = `共 ${allRecords.length} 筆明細`;
@@ -1397,6 +1479,7 @@ header p {
         }
 
         detailTbody.innerHTML = '';
+        const frag = document.createDocumentFragment();
         filtered.forEach(rec => {
           const periods = Number(rec.periodsCount) || 0;
           const rate = Number(rec.rate) || 405;
@@ -1425,15 +1508,26 @@ header p {
               </span>
             </td>
           `;
-          detailTbody.appendChild(tr);
+          frag.appendChild(tr);
         });
+        detailTbody.appendChild(frag);
       }
 
-      // 明細搜尋與篩選事件
-      inputDetailSearch.addEventListener('input', renderDetailTable);
+      // 明細搜尋防抖 (150ms Debounce)
+      let searchTimer = null;
+      inputDetailSearch.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(renderDetailTable, 150);
+      });
+
       btnClearFilter.addEventListener('click', () => {
         currentFilterTeacher = null;
+        currentStatusFilter = 'all';
         inputDetailSearch.value = '';
+        statusFilterChips.forEach(c => {
+          if (c.getAttribute('data-status-filter') === 'all') c.classList.add('active');
+          else c.classList.remove('active');
+        });
         renderDashboard();
       });
 
