@@ -612,7 +612,7 @@ function normalizeDatabase() {
     r["授課教師"] = r["上課老師"];
 
     // 地點
-    r["上課地點"] = String(r["上課地點"] || r["教室"] || (cls ? (cls + " 教室") : "")).trim();
+    r["上課地點"] = String(r["上課地點"] || r["教室"] || (clsKey ? (clsKey + " 教室") : "")).trim();
   });
 
   // 若 DB.teachers 為空，自動由 DB.classes 智慧合成教師課表
@@ -684,8 +684,20 @@ function switchTab(tabId) {
   document.querySelectorAll(".tab-view").forEach(el => el.style.display = "none");
   document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"));
   
-  document.getElementById(`view-${tabId}`).style.display = "block";
-  event.currentTarget.classList.add("active");
+  const targetView = document.getElementById(`view-${tabId}`);
+  if (targetView) targetView.style.display = "block";
+
+  const targetBtn = (window.event && window.event.currentTarget) ? window.event.currentTarget : null;
+  if (targetBtn && targetBtn.classList) {
+    targetBtn.classList.add("active");
+  } else {
+    const allBtns = document.querySelectorAll(".tab-btn");
+    allBtns.forEach(btn => {
+      if (btn.getAttribute("onclick") && btn.getAttribute("onclick").includes(tabId)) {
+        btn.classList.add("active");
+      }
+    });
+  }
 
   if (tabId === 'live') {
     renderLivePeriod();
@@ -853,8 +865,13 @@ function renderClassTimetable() {
 
 function populateTeacherSelect() {
   const select = document.getElementById("select-teacher");
+  if (!select) return;
   select.innerHTML = "";
-  const teacherList = [...new Set(DB.teachers.map(t => String(t["上課老師"] || t["教師姓名"])))].filter(Boolean).sort((a,b) => a.localeCompare(b, 'zh-Hant'));
+  if (!DB || !Array.isArray(DB.teachers)) return;
+  const teacherList = [...new Set(DB.teachers.map(t => String(t["上課老師"] || t["教師姓名"] || "")))]
+    .filter(Boolean)
+    .filter(t => t !== "—" && t !== "-" && t !== "undefined")
+    .sort((a,b) => a.localeCompare(b, 'zh-Hant'));
   teacherList.forEach(t => {
     const tRows = DB.teachers.filter(r => (r["上課老師"] === t || r["教師姓名"] === t));
     const title = tRows.length > 0 ? (tRows[0]["職稱/專長"] || tRows[0]["職稱"]) : "";
@@ -866,8 +883,11 @@ function populateTeacherSelect() {
 }
 
 function renderTeacherTimetable() {
-  const selectedTeacher = document.getElementById("select-teacher").value;
-  const tRows = DB.teachers.filter(r => (r["上課老師"] === selectedTeacher || r["教師姓名"] === selectedTeacher));
+  const select = document.getElementById("select-teacher");
+  if (!select) return;
+  const selectedTeacher = select.value;
+  if (!selectedTeacher) return;
+  const tRows = (DB && Array.isArray(DB.teachers)) ? DB.teachers.filter(r => (r["上課老師"] === selectedTeacher || r["教師姓名"] === selectedTeacher)) : [];
   
   const title = tRows.length > 0 ? (tRows[0]["職稱/專長"] || tRows[0]["職稱"] || "科任教師") : "科任教師";
   const activeCount = tRows.filter(r => (r["授課班級/教室"] || r["班級"]) && (r["授課班級/教室"] !== "—" && r["授課班級/教室"] !== "")).length;
@@ -972,8 +992,9 @@ const TEACHER_COLOR_PALETTES = [
 
 function renderRoomTimetable() {
   const select = document.getElementById("select-room");
-  const selectedRoom = select.value;
-  const selectedOpt = select.options[select.selectedIndex];
+  if (!select) return;
+  const selectedRoom = select.value || "";
+  const selectedOpt = select.selectedIndex >= 0 ? select.options[select.selectedIndex] : null;
   const roomLabel = selectedOpt ? selectedOpt.textContent : selectedRoom;
 
   let roomSlots = [];
