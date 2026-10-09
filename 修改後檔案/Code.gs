@@ -1037,8 +1037,6 @@ function buildTimetable(ss) {
         classesMap[cls] = true;
         if (teacher && teacher !== '—' && teacher !== '-') teachersMap[teacher] = true;
       }
-
-      }
     }
   }
 
