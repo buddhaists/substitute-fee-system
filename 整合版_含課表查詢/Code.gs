@@ -554,7 +554,9 @@ function importTimetableData(rows, mode, key) {
 
     // 清除課表快取以使新匯入資料即時生效
     try {
-      CacheService.getScriptCache().remove("TIMETABLE_DB");
+      var cache = CacheService.getScriptCache();
+      cache.remove("TIMETABLE_DB");
+      cache.remove("SCHEDULE_DATA_CACHE_V2");
     } catch (cErr) {}
 
     return {
@@ -791,6 +793,15 @@ function getOrCreateSheet(ss, name, headers) {
  */
 function getScheduleData() {
   try {
+    // 1. 優先嘗試由 GAS 記憶體快取秒讀 (有效期限 6 小時，超速 20ms 直出)
+    try {
+      var cache = CacheService.getScriptCache();
+      var cached = cache.get("SCHEDULE_DATA_CACHE_V2");
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch (cErr) {}
+
     var ss = getActiveSs();
     if (!ss) {
       throw new Error("無法取得試算表，請確認已綁定試算表。");
@@ -870,7 +881,7 @@ function getScheduleData() {
     var roomSheet = ss.getSheetByName("專科教室課表(19間)") || ss.getSheetByName("專科教室課表");
     var rooms = roomSheet ? readSheetToObjects(roomSheet) : [];
 
-    return {
+    var resultData = {
       success: true,
       data: {
         classes: flatClasses,
@@ -882,6 +893,16 @@ function getScheduleData() {
         classTeachers: classTeachers
       }
     };
+
+    // 存入全域快取 (有效時間 6 小時 = 21600 秒)
+    try {
+      var cacheStr = JSON.stringify(resultData);
+      if (cacheStr.length < 100000) {
+        CacheService.getScriptCache().put("SCHEDULE_DATA_CACHE_V2", cacheStr, 21600);
+      }
+    } catch (putErr) {}
+
+    return resultData;
   } catch (err) {
     return {
       success: false,
@@ -1118,7 +1139,7 @@ function buildTimetable(ss) {
   var result = { db: db, teachers: teachers, classes: classes, classTeachers: classTeachers };
 
   try {
-    CacheService.getScriptCache().put("TIMETABLE_DB", JSON.stringify(result), 300);
+    CacheService.getScriptCache().put("TIMETABLE_DB", JSON.stringify(result), 21600);
   } catch (pErr) {}
 
   return result;

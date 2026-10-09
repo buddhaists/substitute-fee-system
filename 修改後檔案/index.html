@@ -483,6 +483,46 @@ footer {
     if (isGasEnv) {
       google.script.run.withSuccessHandler(applySchoolName).getSystemSettingsData();
     }
+
+    // ============================================================
+    // ⚡ 全校課表背景極速預載 (Idle Prefetching)
+    // 當使用者在首頁停留時，利用瀏覽器閒置時間在背景預熱課表存入 LocalStorage，
+    // 讓使用者稍後點進課表時達到 0 毫秒極速瞬開！
+    // ============================================================
+    function prefetchTimetableData() {
+      const CACHE_KEY = 'sub_timetable_data_cache_v2';
+      const CACHE_TIME_KEY = 'sub_timetable_cache_timestamp';
+      try {
+        const cachedTime = Number(localStorage.getItem(CACHE_TIME_KEY) || 0);
+        // 若快取時間在 1 小時內且已有資料，代表已極新，不重複消耗請求
+        if (Date.now() - cachedTime < 60 * 60 * 1000 && localStorage.getItem(CACHE_KEY)) {
+          return;
+        }
+      } catch (e) {}
+
+      if (isGasEnv) {
+        google.script.run
+          .withSuccessHandler(function(res) {
+            try {
+              var data = (res && res.success && res.data) ? res.data : res;
+              if (data && (data.classes || data.db)) {
+                localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+                localStorage.setItem(CACHE_TIME_KEY, String(Date.now()));
+                console.log("⚡ [預載完成] 全校課表已在背景安靜預熱至 LocalStorage！");
+              }
+            } catch (err) {}
+          })
+          .getScheduleData();
+      }
+    }
+
+    setTimeout(function() {
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(prefetchTimetableData);
+      } else {
+        prefetchTimetableData();
+      }
+    }, 350);
   </script>
 </body>
 </html>
