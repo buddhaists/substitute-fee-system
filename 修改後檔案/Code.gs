@@ -775,13 +775,59 @@ function getScheduleData() {
       throw new Error("無法取得試算表，請確認已綁定試算表。");
     }
     
-    var classSheet = ss.getSheetByName("班級課表") || ss.getSheetByName("班級課表(含未排課)") || ss.getSheetByName("Class_Timetables") || ss.getSheets()[0];
+    // 多候選分頁智慧偵測
+    var classSheet = ss.getSheetByName("班級課表") 
+      || ss.getSheetByName("班級課表(含未排課)") 
+      || ss.getSheetByName("班級課表(僅有課節次)") 
+      || ss.getSheetByName(TIMETABLE_SHEET);
+      
+    if (!classSheet) {
+      var allSheets = ss.getSheets();
+      for (var s = 0; s < allSheets.length; s++) {
+        var sName = allSheets[s].getName();
+        if ((sName.indexOf("班級") !== -1 || sName.indexOf("課表") !== -1) 
+            && sName.indexOf("科任") === -1 
+            && sName.indexOf("專科") === -1 
+            && sName.indexOf("總表") === -1 
+            && sName.indexOf("明細") === -1 
+            && sName.indexOf("設定") === -1
+            && sName.indexOf("印領") === -1) {
+          classSheet = allSheets[s];
+          break;
+        }
+      }
+      if (!classSheet) classSheet = ss.getSheets()[0];
+    }
+
     var teacherSheet = ss.getSheetByName("科任課表") || (ss.getSheets().length > 1 ? ss.getSheets()[1] : null);
     var roomSheet = ss.getSheetByName("專科教室課表(19間)") || ss.getSheetByName("專科教室課表") || (ss.getSheets().length > 2 ? ss.getSheets()[2] : null);
     
     var classes = readSheetToObjects(classSheet);
     var teachers = teacherSheet ? readSheetToObjects(teacherSheet) : [];
     var rooms = roomSheet ? readSheetToObjects(roomSheet) : [];
+
+    // 若科任課表為空，自動由班級課表推導教師授課資料
+    if ((!teachers || teachers.length === 0) && classes && classes.length > 0) {
+      teachers = [];
+      classes.forEach(function(r) {
+        var tea = r["上課老師"] || r["授課教師"];
+        if (tea && tea !== "—" && tea !== "-") {
+          teachers.push({
+            "上課老師": tea,
+            "教師姓名": tea,
+            "授課班級/教室": r["班級"] || r["班級/教室"] || "",
+            "班級": r["班級"] || r["班級/教室"] || "",
+            "星期": r["星期"],
+            "星期序號": r["星期序號"],
+            "節次": r["節次"],
+            "節次序號": r["節次序號"],
+            "科目": r["科目"],
+            "上課地點": r["上課地點"] || "",
+            "職稱/專長": (r["導師"] === tea ? "級任導師" : "科任教師")
+          });
+        }
+      });
+    }
     
     return {
       success: true,
@@ -808,15 +854,55 @@ function readSheetToObjects(sheet) {
   var data = sheet.getRange(1, 1, lastRow, lastCol).getValues();
   var headers = data[0].map(function(h) { return String(h).trim(); });
   var rows = [];
+
+  var dayNames = ["星期一", "星期二", "星期三", "星期四", "星期五"];
+  var dayMap = {
+    '星期一': 1, '週一': 1, '一': 1, '1': 1,
+    '星期二': 2, '週二': 2, '二': 2, '2': 2,
+    '星期三': 3, '週三': 3, '三': 3, '3': 3,
+    '星期四': 4, '週四': 4, '四': 4, '4': 4,
+    '星期五': 5, '週五': 5, '五': 5, '5': 5
+  };
   
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
     var obj = {};
     var hasValue = false;
     for (var j = 0; j < headers.length; j++) {
+      var head = headers[j];
       var val = (row[j] !== undefined && row[j] !== null) ? String(row[j]).trim() : "";
-      obj[headers[j]] = val;
+      obj[head] = val;
       if (val !== "") hasValue = true;
+
+      // 欄位標準化自動映射
+      if ((head.indexOf('班級') !== -1 || head.indexOf('教室') !== -1) && head.indexOf('上課地點') === -1) {
+        obj['班級'] = obj['班級'] || val;
+        obj['班級/教室'] = obj['班級/教室'] || val;
+      } else if (head.indexOf('星期') !== -1 || head.indexOf('週') !== -1) {
+        var dayNum = dayMap[val] || parseInt(val.replace(/[^0-9]/g, ''), 10) || 1;
+        obj['星期序號'] = dayNum;
+        obj['星期'] = (dayNum >= 1 && dayNum <= 5) ? dayNames[dayNum - 1] : val;
+      } else if (head.indexOf('節次') !== -1 || head.indexOf('節') !== -1) {
+        var pMatch = val.match(/(\d+)/);
+        var pNum = pMatch ? parseInt(pMatch[1], 10) : parseInt(val, 10);
+        if (!isNaN(pNum)) {
+          obj['節次序號'] = pNum;
+          obj['節次'] = '第' + pNum + '節';
+        } else {
+          obj['節次'] = val;
+        }
+      } else if (head.indexOf('科目') !== -1 || head.indexOf('課程') !== -1) {
+        obj['科目'] = obj['科目'] || val;
+      } else if (head.indexOf('身份') === -1 && head.indexOf('代課') === -1 && (head.indexOf('老師') !== -1 || head.indexOf('教師') !== -1)) {
+        obj['上課老師'] = obj['上課老師'] || val;
+        obj['授課教師'] = obj['授課教師'] || val;
+      } else if (head.indexOf('導師') !== -1) {
+        obj['導師'] = obj['導師'] || val;
+      } else if (head.indexOf('年級') !== -1) {
+        obj['年級'] = obj['年級'] || val;
+      } else if (head.indexOf('地點') !== -1) {
+        obj['上課地點'] = obj['上課地點'] || val;
+      }
     }
     if (hasValue) {
       rows.push(obj);

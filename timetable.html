@@ -455,8 +455,167 @@ function initData() {
   }
 }
 
+function normalizeGrade(grade, className) {
+  if (grade && String(grade).includes("年級")) return String(grade);
+  const gradeMap = { "1": "一年級", "2": "二年級", "3": "三年級", "4": "四年級", "5": "五年級", "6": "六年級" };
+  if (grade && gradeMap[String(grade).trim()]) return gradeMap[String(grade).trim()];
+  if (className) {
+    const firstChar = String(className).trim().charAt(0);
+    if (gradeMap[firstChar]) return gradeMap[firstChar];
+    if (firstChar === "一") return "一年級";
+    if (firstChar === "二") return "二年級";
+    if (firstChar === "三") return "三年級";
+    if (firstChar === "四") return "四年級";
+    if (firstChar === "五") return "五年級";
+    if (firstChar === "六") return "六年級";
+  }
+  return grade || "";
+}
+
+function detectHomeroom(classRows) {
+  if (!classRows || classRows.length === 0) return "未指定";
+  // 1. 優先找教國語/語文的老師 (國小級任導師幾乎必教國語文)
+  for (let i = 0; i < classRows.length; i++) {
+    const subj = String(classRows[i]["科目"] || classRows[i]["科目(Subject)"] || classRows[i]["科目名稱"] || "");
+    const tea = String(classRows[i]["上課老師"] || classRows[i]["授課教師"] || classRows[i]["授課教師(Teacher)"] || classRows[i]["任課教師"] || "");
+    if ((subj.includes("國語") || subj.includes("語文")) && tea && tea !== "—" && tea !== "-") {
+      return tea;
+    }
+  }
+  // 2. 尋找標記為導師的
+  for (let i = 0; i < classRows.length; i++) {
+    if (classRows[i]["老師身份"] === "導師" && classRows[i]["上課老師"]) {
+      return classRows[i]["上課老師"];
+    }
+  }
+  // 3. 尋找授課節數最多的老師
+  const counts = {};
+  classRows.forEach(r => {
+    const tea = String(r["上課老師"] || r["授課教師"] || r["授課教師(Teacher)"] || r["任課教師"] || "");
+    if (tea && tea !== "—" && tea !== "-") counts[tea] = (counts[tea] || 0) + 1;
+  });
+  let maxT = "未指定", maxC = 0;
+  for (let t in counts) {
+    if (counts[t] > maxC) { maxC = counts[t]; maxT = t; }
+  }
+  return maxT;
+}
+
+function normalizeDatabase() {
+  if (!DB || !Array.isArray(DB.classes)) return;
+  const dayNameMap = { "1": "星期一", "2": "星期二", "3": "星期三", "4": "星期四", "5": "星期五" };
+  const dayIdxMap = { "星期一": 1, "週一": 1, "一": 1, "1": 1, "星期二": 2, "週二": 2, "二": 2, "2": 2, "星期三": 3, "週三": 3, "三": 3, "3": 3, "星期四": 4, "週四": 4, "四": 4, "4": 4, "星期五": 5, "週五": 5, "五": 5, "5": 5 };
+
+  // 先按班級統計導師
+  const classRowsMap = {};
+  DB.classes.forEach(r => {
+    const cls = String(r["班級/教室"] || r["班級"] || r["班級(ClassName)"] || r["ClassName"] || "").trim();
+    if (cls) {
+      if (!classRowsMap[cls]) classRowsMap[cls] = [];
+      classRowsMap[cls].push(r);
+    }
+  });
+
+  const classHomeroomMap = {};
+  for (let cls in classRowsMap) {
+    const firstHomeroom = classRowsMap[cls].find(r => r["導師"] && r["導師"] !== "未指定");
+    classHomeroomMap[cls] = firstHomeroom ? firstHomeroom["導師"] : detectHomeroom(classRowsMap[cls]);
+  }
+
+  // 正規化每一列
+  DB.classes.forEach(r => {
+    const cls = String(r["班級/教室"] || r["班級"] || r["班級(ClassName)"] || r["ClassName"] || "").trim();
+    r["班級"] = cls;
+    r["班級/教室"] = cls;
+
+    // 年級
+    r["年級"] = normalizeGrade(r["年級"], cls);
+
+    // 導師
+    r["導師"] = classHomeroomMap[cls] || "未指定";
+
+    // 星期
+    const rawDay = String(r["星期"] || r["星期(DayOfWeek)"] || r["DayOfWeek"] || r["週"] || "").trim();
+    let dayNum = dayIdxMap[rawDay];
+    if (!dayNum) {
+      const dMatch = rawDay.match(/(\d+)/);
+      dayNum = dMatch ? parseInt(dMatch[1], 10) : 1;
+    }
+    r["星期序號"] = dayNum;
+    r["星期"] = DAYS[dayNum - 1] || "星期一";
+
+    // 節次
+    const rawPeriod = String(r["節次"] || r["節次(Period)"] || r["Period"] || r["節次序號"] || "").trim();
+    let pNum = 0;
+    const pMatch = rawPeriod.match(/(\d+)/);
+    if (pMatch) pNum = parseInt(pMatch[1], 10);
+    r["節次序號"] = pNum;
+    r["節次"] = pNum > 0 ? ("第" + pNum + "節") : rawPeriod;
+
+    // 科目
+    r["科目"] = String(r["科目"] || r["科目(Subject)"] || r["科目名稱"] || r["課程"] || r["Subject"] || "").trim();
+
+    // 教師
+    r["上課老師"] = String(r["上課老師"] || r["授課教師"] || r["授課教師(Teacher)"] || r["任課教師"] || r["教師"] || r["Teacher"] || "").trim();
+    r["授課教師"] = r["上課老師"];
+
+    // 地點
+    r["上課地點"] = String(r["上課地點"] || r["教室"] || (cls ? (cls + " 教室") : "")).trim();
+  });
+
+  // 若 DB.teachers 為空，自動由 DB.classes 智慧合成教師課表
+  if (!DB.teachers || !Array.isArray(DB.teachers) || DB.teachers.length === 0) {
+    DB.teachers = [];
+    DB.classes.forEach(r => {
+      const tea = r["上課老師"];
+      if (tea && tea !== "—" && tea !== "-") {
+        DB.teachers.push({
+          "上課老師": tea,
+          "教師姓名": tea,
+          "授課班級/教室": r["班級"],
+          "班級": r["班級"],
+          "星期": r["星期"],
+          "星期序號": r["星期序號"],
+          "節次": r["節次"],
+          "節次序號": r["節次序號"],
+          "科目": r["科目"],
+          "上課地點": r["上課地點"],
+          "職稱/專長": (r["導師"] === tea ? "級任導師" : "科任教師")
+        });
+      }
+    });
+  } else {
+    // 若已有 DB.teachers，也予以正規化
+    DB.teachers.forEach(r => {
+      r["上課老師"] = String(r["上課老師"] || r["教師姓名"] || r["授課教師"] || "").trim();
+      r["教師姓名"] = r["上課老師"];
+      r["授課班級/教室"] = String(r["授課班級/教室"] || r["班級"] || "").trim();
+      r["班級"] = r["授課班級/教室"];
+      
+      const rawDay = String(r["星期"] || "").trim();
+      let dayNum = dayIdxMap[rawDay];
+      if (!dayNum) {
+        const dMatch = rawDay.match(/(\d+)/);
+        dayNum = dMatch ? parseInt(dMatch[1], 10) : 1;
+      }
+      r["星期序號"] = dayNum;
+      r["星期"] = DAYS[dayNum - 1] || "星期一";
+
+      const rawPeriod = String(r["節次"] || r["節次序號"] || "").trim();
+      let pNum = 0;
+      const pMatch = rawPeriod.match(/(\d+)/);
+      if (pMatch) pNum = parseInt(pMatch[1], 10);
+      r["節次序號"] = pNum;
+      r["節次"] = pNum > 0 ? ("第" + pNum + "節") : rawPeriod;
+
+      r["科目"] = String(r["科目"] || "").trim();
+    });
+  }
+}
+
 function setupUI() {
   try {
+    normalizeDatabase();
     populateClassSelect();
     populateTeacherSelect();
     setupGradeChips();
@@ -542,10 +701,10 @@ function renderClassTimetable() {
   const selectedClass = document.getElementById("select-class").value;
   const classRows = DB.classes.filter(c => String(c["班級/教室"] || c["班級"]) === selectedClass);
   
-  const homeroom = classRows.length > 0 ? (classRows[0]["導師"] || "未指定") : "未指定";
-  const grade = classRows.length > 0 ? (classRows[0]["年級"] || "") : "";
+  const homeroom = (classRows.length > 0 && classRows[0]["導師"] && classRows[0]["導師"] !== "未指定") ? classRows[0]["導師"] : detectHomeroom(classRows);
+  const grade = normalizeGrade(classRows.length > 0 ? classRows[0]["年級"] : "", selectedClass);
 
-  document.getElementById("class-table-title").innerHTML = `🏫 ${selectedClass} 班級週課表 <span style="font-size:0.85rem;font-weight:600;color:var(--text-muted);">(${grade})</span>`;
+  document.getElementById("class-table-title").innerHTML = `🏫 ${selectedClass} 班級週課表 <span style="font-size:0.85rem;font-weight:600;color:var(--text-muted);">${grade ? '(' + grade + ')' : ''}</span>`;
   document.getElementById("class-homeroom-info").textContent = `導師：${homeroom} 老師`;
 
   const activeCount = classRows.filter(r => r["科目"] && r["科目"] !== "（無排課）" && r["科目"] !== "—" && r["科目"] !== "無課").length;
@@ -566,7 +725,13 @@ function renderClassTimetable() {
     html += `<th class="th-period"><strong>${p.name}</strong><br><span style="font-size:0.72rem;color:var(--text-muted);">${p.time}</span></th>`;
     
     DAYS.forEach((d, dIdx) => {
-      const slot = classRows.find(r => (r["星期"] === d || r["星期"] === (dIdx+1)) && (r["節次"] === p.name || Number(r["節次序號"]) === p.id || Number(r["節次"]) === p.id));
+      const targetDayNum = dIdx + 1;
+      const slot = classRows.find(r => {
+        const dayMatch = (r["星期"] === d || r["星期序號"] === targetDayNum || Number(String(r["星期"]).replace(/[^0-9]/g, '')) === targetDayNum);
+        const pNum = Number(r["節次序號"]) || Number(String(r["節次"] || "").replace(/[^0-9]/g, '')) || 0;
+        const periodMatch = (pNum === p.id || r["節次"] === p.name || String(r["節次"]).replace(/\s+/g, '') === p.name.replace(/\s+/g, ''));
+        return dayMatch && periodMatch;
+      });
       const isCurrent = currentSlot && currentSlot.dayIdx === dIdx && currentSlot.periodId === p.id;
       
       const subj = slot ? (slot["科目"]) : "";
@@ -633,7 +798,13 @@ function renderTeacherTimetable() {
     html += `<th class="th-period"><strong>${p.name}</strong><br><span style="font-size:0.72rem;color:var(--text-muted);">${p.time}</span></th>`;
     
     DAYS.forEach((d, dIdx) => {
-      const slot = tRows.find(r => (r["星期"] === d || r["星期"] === (dIdx+1)) && (r["節次"] === p.name || Number(r["節次序號"]) === p.id || Number(r["節次"]) === p.id));
+      const targetDayNum = dIdx + 1;
+      const slot = tRows.find(r => {
+        const dayMatch = (r["星期"] === d || r["星期序號"] === targetDayNum || Number(String(r["星期"]).replace(/[^0-9]/g, '')) === targetDayNum);
+        const pNum = Number(r["節次序號"]) || Number(String(r["節次"] || "").replace(/[^0-9]/g, '')) || 0;
+        const periodMatch = (pNum === p.id || r["節次"] === p.name || String(r["節次"]).replace(/\s+/g, '') === p.name.replace(/\s+/g, ''));
+        return dayMatch && periodMatch;
+      });
       const isCurrent = currentSlot && currentSlot.dayIdx === dIdx && currentSlot.periodId === p.id;
       
       const cls = slot ? (slot["授課班級/教室"] || slot["班級"]) : "";
@@ -660,6 +831,7 @@ function renderTeacherTimetable() {
   html += `</tbody>`;
   table.innerHTML = html;
 }
+
 
 function filterRoomCategory(cat, btnEl) {
   const chipBtns = document.querySelectorAll("#room-category-chips .chip-btn");
@@ -848,7 +1020,13 @@ function renderLivePeriod() {
   const selectedPeriod = Number(document.getElementById("select-live-period").value);
 
   const allClasses = [...new Set(DB.classes.map(c => String(c["班級/教室"] || c["班級"])))].filter(Boolean).sort();
-  const dayClasses = DB.classes.filter(c => (c["星期"] === selectedDay || c["星期"] === (DAYS.indexOf(selectedDay)+1)) && (c["節次"] === `第${selectedPeriod}節` || Number(c["節次序號"]) === selectedPeriod || Number(c["節次"]) === selectedPeriod));
+  const dayIdx = DAYS.indexOf(selectedDay);
+  const targetDayNum = dayIdx + 1;
+  const dayClasses = DB.classes.filter(c => {
+    const dayMatch = (c["星期"] === selectedDay || c["星期序號"] === targetDayNum || Number(String(c["星期"]).replace(/[^0-9]/g, '')) === targetDayNum);
+    const pNum = Number(c["節次序號"]) || Number(String(c["節次"] || "").replace(/[^0-9]/g, '')) || 0;
+    return dayMatch && (pNum === selectedPeriod);
+  });
 
   const classContainer = document.getElementById("live-class-status-container");
   classContainer.innerHTML = "";
@@ -885,7 +1063,11 @@ function renderLivePeriod() {
   const allTeachers = [...new Set(DB.teachers.map(t => String(t["上課老師"] || t["教師姓名"])))].filter(Boolean).sort((a,b) => a.localeCompare(b, 'zh-Hant'));
   const busyTeachers = new Set(
     DB.teachers
-      .filter(t => (t["星期"] === selectedDay || t["星期"] === (DAYS.indexOf(selectedDay)+1)) && (t["節次"] === `第${selectedPeriod}節` || Number(t["節次序號"]) === selectedPeriod || Number(t["節次"]) === selectedPeriod) && (t["授課班級/教室"] || t["班級"]))
+      .filter(t => {
+        const dayMatch = (t["星期"] === selectedDay || t["星期序號"] === targetDayNum || Number(String(t["星期"]).replace(/[^0-9]/g, '')) === targetDayNum);
+        const pNum = Number(t["節次序號"]) || Number(String(t["節次"] || "").replace(/[^0-9]/g, '')) || 0;
+        return dayMatch && (pNum === selectedPeriod) && (t["授課班級/教室"] || t["班級"]);
+      })
       .map(t => String(t["上課老師"] || t["教師姓名"]))
   );
 
