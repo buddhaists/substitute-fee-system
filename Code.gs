@@ -834,6 +834,58 @@ function getScheduleData() {
     var teachers = teacherSheet ? readSheetToObjects(teacherSheet) : [];
     var rooms = roomSheet ? readSheetToObjects(roomSheet) : [];
 
+    // 智慧導師推導（若試算表無導師欄位或為空，自動以國語文任課老師或授課節數最多者為導師）
+    if (classes && classes.length > 0) {
+      var classTeachersMap = {};
+      classes.forEach(function(r) {
+        var clsKey = String(r["班級"] || r["班級/教室"] || "").replace(/班$/g, "").trim();
+        if (!clsKey) return;
+        if (!classTeachersMap[clsKey]) {
+          classTeachersMap[clsKey] = {
+            explicit: "",
+            mandarin: "",
+            counts: {}
+          };
+        }
+        var info = classTeachersMap[clsKey];
+        var hr = String(r["導師"] || "").trim();
+        if (hr && hr !== "未指定" && hr !== "—" && hr !== "-") info.explicit = hr;
+
+        var tea = String(r["上課老師"] || r["授課教師"] || "").trim();
+        var subj = String(r["科目"] || "").trim();
+        if (tea && tea !== "—" && tea !== "-") {
+          info.counts[tea] = (info.counts[tea] || 0) + 1;
+          if ((subj.indexOf("國語") !== -1 || subj.indexOf("語文") !== -1 || subj.indexOf("導師") !== -1) && !info.mandarin) {
+            info.mandarin = tea;
+          }
+        }
+      });
+
+      var classHomeroomLookup = {};
+      for (var cKey in classTeachersMap) {
+        var item = classTeachersMap[cKey];
+        if (item.explicit) {
+          classHomeroomLookup[cKey] = item.explicit;
+        } else if (item.mandarin) {
+          classHomeroomLookup[cKey] = item.mandarin;
+        } else {
+          var maxT = "未指定", maxC = 0;
+          for (var t in item.counts) {
+            if (item.counts[t] > maxC) { maxC = item.counts[t]; maxT = t; }
+          }
+          classHomeroomLookup[cKey] = maxT;
+        }
+      }
+
+      classes.forEach(function(r) {
+        var clsKey = String(r["班級"] || r["班級/教室"] || "").replace(/班$/g, "").trim();
+        var foundHr = classHomeroomLookup[clsKey] || "未指定";
+        if (!r["導師"] || r["導師"] === "未指定" || r["導師"] === "—" || r["導師"] === "-") {
+          r["導師"] = foundHr;
+        }
+      });
+    }
+
     // 若科任課表為空，自動由班級課表推導教師授課資料
     if ((!teachers || teachers.length === 0) && classes && classes.length > 0) {
       teachers = [];

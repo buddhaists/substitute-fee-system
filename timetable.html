@@ -412,7 +412,12 @@ td.current-period-cell::after { content: '● 現在'; position: absolute; top: 
   let DB = null;
   if (SERVER_DATA_RAW) {
     try {
-      DB = (typeof SERVER_DATA_RAW === 'string') ? JSON.parse(SERVER_DATA_RAW) : SERVER_DATA_RAW;
+      let parsed = (typeof SERVER_DATA_RAW === 'string') ? JSON.parse(SERVER_DATA_RAW) : SERVER_DATA_RAW;
+      if (parsed && parsed.success && parsed.data && Array.isArray(parsed.data.classes)) {
+        DB = parsed.data;
+      } else if (parsed && Array.isArray(parsed.classes)) {
+        DB = parsed;
+      }
     } catch(e) {
       console.warn("解析伺服端課表資料失敗，切換至非同步讀取", e);
     }
@@ -516,38 +521,47 @@ function normalizeGrade(grade, className) {
 
 function detectHomeroom(classRows) {
   if (!classRows || classRows.length === 0) return "未指定";
+  
   // 1. 優先尋找明確標記導師且非未指定者
   for (let i = 0; i < classRows.length; i++) {
-    const hr = String(classRows[i]["導師"] || "").trim();
-    if (hr && hr !== "未指定" && hr !== "—" && hr !== "-") {
+    const hr = String(classRows[i]["導師"] || classRows[i]["級任導師"] || classRows[i]["導師姓名"] || classRows[i]["級任"] || classRows[i]["班導"] || classRows[i]["Homeroom"] || "").trim();
+    if (hr && hr !== "未指定" && hr !== "—" && hr !== "-" && hr !== "null" && hr !== "undefined") {
       return hr;
     }
   }
+  
   // 2. 尋找老師身份為導師
   for (let i = 0; i < classRows.length; i++) {
-    const role = String(classRows[i]["老師身份"] || classRows[i]["身份"] || "").trim();
-    const tea = String(classRows[i]["上課老師"] || classRows[i]["授課教師"] || classRows[i]["授課教師(Teacher)"] || "").trim();
-    if (role.includes("導師") && tea && tea !== "—" && tea !== "-") {
+    const role = String(classRows[i]["老師身份"] || classRows[i]["身份"] || classRows[i]["職稱"] || classRows[i]["職稱/專長"] || classRows[i]["Role"] || "").trim();
+    const tea = String(classRows[i]["上課老師"] || classRows[i]["授課教師"] || classRows[i]["任課教師"] || classRows[i]["教師"] || classRows[i]["老師"] || classRows[i]["教師姓名"] || classRows[i]["Teacher"] || classRows[i]["授課教師(Teacher)"] || "").trim();
+    if (role.includes("導師") && tea && tea !== "—" && tea !== "-" && tea !== "未指定") {
       return tea;
     }
   }
+  
   // 3. 尋找教國語/語文/導師時間/晨光的老師 (國小級任導師必教國語文)
   for (let i = 0; i < classRows.length; i++) {
-    const subj = String(classRows[i]["科目"] || classRows[i]["科目(Subject)"] || classRows[i]["科目名稱"] || "").trim();
-    const tea = String(classRows[i]["上課老師"] || classRows[i]["授課教師"] || classRows[i]["授課教師(Teacher)"] || "").trim();
-    if ((subj.includes("國語") || subj.includes("語文") || subj.includes("導師") || subj.includes("晨光")) && tea && tea !== "—" && tea !== "-") {
+    const subj = String(classRows[i]["科目"] || classRows[i]["課程"] || classRows[i]["科目名稱"] || classRows[i]["課程名稱"] || classRows[i]["領域"] || classRows[i]["科目(Subject)"] || classRows[i]["Subject"] || "").trim();
+    const tea = String(classRows[i]["上課老師"] || classRows[i]["授課教師"] || classRows[i]["任課教師"] || classRows[i]["教師"] || classRows[i]["老師"] || classRows[i]["教師姓名"] || classRows[i]["Teacher"] || classRows[i]["授課教師(Teacher)"] || "").trim();
+    if ((subj.includes("國語") || subj.includes("語文") || subj.includes("導師") || subj.includes("晨光")) && tea && tea !== "—" && tea !== "-" && tea !== "未指定") {
       return tea;
     }
   }
-  // 4. 統計該班上課節數最多的老師 (國小導師節數必為全班最高)
+  
+  // 4. 統計該班上課節數最多的老師 (國小導師授課節數必為全班第一)
   const counts = {};
   classRows.forEach(r => {
-    const tea = String(r["上課老師"] || r["授課教師"] || r["授課教師(Teacher)"] || "").trim();
-    if (tea && tea !== "—" && tea !== "-") counts[tea] = (counts[tea] || 0) + 1;
+    const tea = String(r["上課老師"] || r["授課教師"] || r["任課教師"] || r["教師"] || r["老師"] || r["教師姓名"] || r["Teacher"] || r["授課教師(Teacher)"] || "").trim();
+    if (tea && tea !== "—" && tea !== "-" && tea !== "未指定") {
+      counts[tea] = (counts[tea] || 0) + 1;
+    }
   });
   let maxT = "未指定", maxC = 0;
   for (let t in counts) {
-    if (counts[t] > maxC) { maxC = counts[t]; maxT = t; }
+    if (counts[t] > maxC) {
+      maxC = counts[t];
+      maxT = t;
+    }
   }
   return maxT;
 }
@@ -557,34 +571,15 @@ function normalizeDatabase() {
   const dayNameMap = { "1": "星期一", "2": "星期二", "3": "星期三", "4": "星期四", "5": "星期五" };
   const dayIdxMap = { "星期一": 1, "週一": 1, "一": 1, "1": 1, "星期二": 2, "週二": 2, "二": 2, "2": 2, "星期三": 3, "週三": 3, "三": 3, "3": 3, "星期四": 4, "週四": 4, "四": 4, "4": 4, "星期五": 5, "週五": 5, "五": 5, "5": 5 };
 
-  // 先按班級鍵統計導師
-  const classRowsMap = {};
+  // 第一階段：先標準化每一列的基本欄位 (班級、教師、科目、星期、節次、地點)
   DB.classes.forEach(r => {
     const rawCls = r["班級/教室"] || r["班級"] || r["班級(ClassName)"] || r["ClassName"] || "";
     const clsKey = normalizeClassKey(rawCls);
-    if (clsKey) {
-      if (!classRowsMap[clsKey]) classRowsMap[clsKey] = [];
-      classRowsMap[clsKey].push(r);
-    }
-  });
-
-  const classHomeroomMap = {};
-  for (let clsKey in classRowsMap) {
-    classHomeroomMap[clsKey] = detectHomeroom(classRowsMap[clsKey]);
-  }
-
-  // 正規化每一列
-  DB.classes.forEach(r => {
-    const rawCls = r["班級/教室"] || r["班級"] || r["班級(ClassName)"] || r["ClassName"] || "";
-    const clsKey = normalizeClassKey(rawCls);
-    r["班級"] = clsKey || rawCls;
-    r["班級/教室"] = clsKey || rawCls;
+    r["班級"] = clsKey || String(rawCls).trim();
+    r["班級/教室"] = clsKey || String(rawCls).trim();
 
     // 年級
     r["年級"] = normalizeGrade(r["年級"], clsKey);
-
-    // 導師
-    r["導師"] = classHomeroomMap[clsKey] || detectHomeroom([r]) || "未指定";
 
     // 星期
     const rawDay = String(r["星期"] || r["星期(DayOfWeek)"] || r["DayOfWeek"] || r["週"] || "").trim();
@@ -605,14 +600,41 @@ function normalizeDatabase() {
     r["節次"] = pNum > 0 ? ("第" + pNum + "節") : rawPeriod;
 
     // 科目
-    r["科目"] = String(r["科目"] || r["科目(Subject)"] || r["科目名稱"] || r["課程"] || r["Subject"] || "").trim();
+    r["科目"] = String(r["科目"] || r["課程"] || r["科目名稱"] || r["課程名稱"] || r["領域"] || r["科目(Subject)"] || r["Subject"] || "").trim();
 
-    // 教師
-    r["上課老師"] = String(r["上課老師"] || r["授課教師"] || r["授課教師(Teacher)"] || r["任課教師"] || r["教師"] || r["Teacher"] || "").trim();
+    // 教師 (全面支援各類命名)
+    r["上課老師"] = String(r["上課老師"] || r["授課教師"] || r["任課教師"] || r["教師"] || r["老師"] || r["教師姓名"] || r["Teacher"] || r["授課教師(Teacher)"] || "").trim();
     r["授課教師"] = r["上課老師"];
 
     // 地點
     r["上課地點"] = String(r["上課地點"] || r["教室"] || (clsKey ? (clsKey + " 教室") : "")).trim();
+  });
+
+  // 第二階段：依已標準化的班級資料統計各班導師
+  const classRowsMap = {};
+  DB.classes.forEach(r => {
+    const clsKey = r["班級"];
+    if (clsKey) {
+      if (!classRowsMap[clsKey]) classRowsMap[clsKey] = [];
+      classRowsMap[clsKey].push(r);
+    }
+  });
+
+  const classHomeroomMap = {};
+  for (let clsKey in classRowsMap) {
+    classHomeroomMap[clsKey] = detectHomeroom(classRowsMap[clsKey]);
+  }
+
+  // 第三階段：將推導出的導師姓名指派回每一列
+  DB.classes.forEach(r => {
+    const clsKey = r["班級"];
+    const detected = classHomeroomMap[clsKey] || "未指定";
+    const explicit = String(r["導師"] || r["級任導師"] || r["導師姓名"] || "").trim();
+    if (explicit && explicit !== "未指定" && explicit !== "—" && explicit !== "-") {
+      r["導師"] = explicit;
+    } else {
+      r["導師"] = detected;
+    }
   });
 
   // 若 DB.teachers 為空，自動由 DB.classes 智慧合成教師課表
@@ -806,7 +828,19 @@ function renderClassTimetable() {
     return normalizeClassKey(raw) === targetKey;
   });
   
-  const homeroom = detectHomeroom(classRows);
+  let homeroom = "未指定";
+  if (classRows.length > 0) {
+    for (let i = 0; i < classRows.length; i++) {
+      const h = String(classRows[i]["導師"] || "").trim();
+      if (h && h !== "未指定" && h !== "—" && h !== "-") {
+        homeroom = h;
+        break;
+      }
+    }
+    if (homeroom === "未指定") {
+      homeroom = detectHomeroom(classRows);
+    }
+  }
   const grade = normalizeGrade(classRows.length > 0 ? classRows[0]["年級"] : "", selectedClass);
 
   document.getElementById("class-table-title").innerHTML = `🏫 ${selectedClass} 班級週課表 <span style="font-size:0.85rem;font-weight:600;color:var(--text-muted);">${grade ? '(' + grade + ')' : ''}</span>`;
