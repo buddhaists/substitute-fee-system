@@ -34,7 +34,8 @@ var DEFAULT_SETTINGS = [
   { name: "學年學期", key: "academic_year_term", value: "114-1", desc: "當前運行的學年與學期" },
   { name: "代理導師預設日薪", key: "mentor_daily_rate", value: "1528", desc: "整天代導師之日薪預設標準" },
   { name: "非計費作息項目", key: "duty_items", value: "早修,打掃,午餐,午休,放學", desc: "交接單上之作息指導項目(逗號分隔)" },
-  { name: "安全管理金鑰", key: "secret_key", value: "087525402", desc: "行政端結算與課表匯入之安全管理金鑰(密碼)" }
+  { name: "安全管理金鑰", key: "secret_key", value: "087525402", desc: "行政端結算與課表匯入之安全管理金鑰(密碼)" },
+  { name: "Web App 部署網址", key: "web_app_url", value: "", desc: "GAS 網頁應用程式部署 URL (留空則自動偵測)" }
 ];
 
 var SUMMARY_HEADERS = [
@@ -99,9 +100,18 @@ function include(filename) {
 }
 
 /**
- * 取得目前 Web App 部署網址（自動移除教育網域前綴，防止多帳號登入跳轉衝突）
+ * 取得目前 Web App 部署網址（支援試算表全域設定備援，並自動移除教育網域前綴）
  */
-function getScriptUrl() {
+function getScriptUrl(ss) {
+  try {
+    if (ss) {
+      var settings = getSystemSettings(ss);
+      if (settings && settings.web_app_url && String(settings.web_app_url).trim().indexOf('http') === 0) {
+        return String(settings.web_app_url).trim();
+      }
+    }
+  } catch (e) {}
+
   try {
     var url = ScriptApp.getService().getUrl();
     if (url) {
@@ -187,15 +197,18 @@ function doGet(e) {
       page = 'index';
     }
 
-    var template = createTemplateHelper(page);
-    template.page = page;
-    template.scriptUrl = getScriptUrl();
-    template.urlParams = params;
-
     var activeSs = null;
     try {
       activeSs = SpreadsheetApp.getActiveSpreadsheet();
     } catch (e) {}
+
+    var template = createTemplateHelper(page);
+    template.page = page;
+
+    var scriptUrl = getScriptUrl(activeSs);
+    template.scriptUrl = scriptUrl;
+    template.appUrl = scriptUrl;
+    template.urlParams = params;
 
     var currentSettings = activeSs ? getSystemSettings(activeSs) : {};
     template.systemSettings = currentSettings;

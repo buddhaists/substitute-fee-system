@@ -587,11 +587,15 @@ input[type="checkbox"] {
   </style>
 </head>
 <body>
-  <? var appUrl = (typeof scriptUrl !== 'undefined' && scriptUrl) ? scriptUrl : (typeof getScriptUrl === 'function' ? getScriptUrl() : ''); ?>
+  <? 
+    var rawUrl = (typeof appUrl !== 'undefined' && appUrl) ? appUrl : ((typeof scriptUrl !== 'undefined' && scriptUrl) ? scriptUrl : '');
+    var baseNavUrl = rawUrl ? rawUrl.split('?')[0] : '';
+  ?>
   <? var serverData = (typeof serverTimetable !== 'undefined' && serverTimetable) ? JSON.stringify(serverTimetable) : '{}'; ?>
   <? var settingsData = (typeof systemSettings !== 'undefined' && systemSettings) ? JSON.stringify(systemSettings) : '{}'; ?>
   <? var urlParamsData = (typeof urlParams !== 'undefined' && urlParams) ? JSON.stringify(urlParams) : '{}'; ?>
   <script>
+    var SERVER_APP_URL = "<?= baseNavUrl ?>";
     var SERVER_TIMETABLE = <?!= serverData ?>;
     var SERVER_SYSTEM_SETTINGS = <?!= settingsData ?>;
     var SERVER_URL_PARAMS = <?!= urlParamsData ?>;
@@ -600,20 +604,20 @@ input[type="checkbox"] {
     
     <!-- 全域頂部導航選單 (Top Navigation Menu) -->
     <nav class="top-navbar">
-      <a href="<?= appUrl ?>" class="nav-brand" target="_top" onclick="navTo(''); return false;">
+      <a href="<?= baseNavUrl ? baseNavUrl : 'javascript:void(0);' ?>" class="nav-brand" target="_top" data-page="" onclick="navTo(''); return false;">
         <i class="fa-solid fa-graduation-cap"></i> <span id="nav-school-name">代課系統</span>
       </a>
       <div class="nav-menu">
-        <a href="<?= appUrl ?>" class="nav-item" target="_top" onclick="navTo(''); return false;">
+        <a href="<?= baseNavUrl ? baseNavUrl : 'javascript:void(0);' ?>" class="nav-item" target="_top" data-page="" onclick="navTo(''); return false;">
           <i class="fa-solid fa-house"></i> 首頁入口
         </a>
-        <a href="<?= appUrl ?>?page=timetable" class="nav-item" target="_top" onclick="navTo('timetable'); return false;">
+        <a href="<?= baseNavUrl ? baseNavUrl + '?page=timetable' : 'javascript:void(0);' ?>" class="nav-item" target="_top" data-page="timetable" onclick="navTo('timetable'); return false;">
           <i class="fa-solid fa-calendar-days"></i> 全校課表查詢
         </a>
-        <a href="<?= appUrl ?>?page=teacher" class="nav-item active" target="_top" onclick="navTo('teacher'); return false;">
+        <a href="<?= baseNavUrl ? baseNavUrl + '?page=teacher' : 'javascript:void(0);' ?>" class="nav-item active" target="_top" data-page="teacher" onclick="navTo('teacher'); return false;">
           <i class="fa-solid fa-file-signature"></i> 教師交接端
         </a>
-        <a href="<?= appUrl ?>?page=admin" class="nav-item" target="_top" onclick="navTo('admin'); return false;">
+        <a href="<?= baseNavUrl ? baseNavUrl + '?page=admin' : 'javascript:void(0);' ?>" class="nav-item" target="_top" data-page="admin" onclick="navTo('admin'); return false;">
           <i class="fa-solid fa-calculator"></i> 行政核銷端
         </a>
       </div>
@@ -1007,19 +1011,92 @@ input[type="checkbox"] {
     var isGasEnv = typeof google !== 'undefined' && typeof google.script !== 'undefined' && typeof google.script.run !== 'undefined';
     // SERVER_SYSTEM_SETTINGS 和 SERVER_TIMETABLE 已在 head 的 script 區塊（行 594-595）用 var 宣告，此處不重複宣告
 
-    function navTo(page) {
-      var serverUrl = "<?= appUrl ?>";
-      var baseUrl = (serverUrl && serverUrl.indexOf('http') === 0) ? serverUrl.split('?')[0] : window.location.href.split('?')[0];
-      baseUrl = baseUrl.replace(/\/userCodeAppPanel$/, '');
-      var target = page ? (baseUrl + '?page=' + page) : baseUrl;
+    // 取得絕對可靠的 GAS Web App 基底 URL (多軌備援，嚴格排斥 googleusercontent)
+    function getSafeBaseUrl() {
+      var sUrl = (typeof SERVER_APP_URL !== 'undefined' && SERVER_APP_URL) ? String(SERVER_APP_URL).trim() : '';
+      if (!sUrl && typeof serverUrl !== 'undefined' && serverUrl) {
+        sUrl = String(serverUrl).trim();
+      }
+      if (sUrl && sUrl.indexOf('https://script.google.com') === 0) {
+        return sUrl.split('?')[0];
+      }
+      if (typeof document !== 'undefined' && document.referrer && document.referrer.indexOf('https://script.google.com') === 0) {
+        return document.referrer.split('?')[0];
+      }
       try {
-        if (window.top && window.top.location) {
+        var stored = localStorage.getItem('gas_web_app_url');
+        if (stored && stored.indexOf('https://script.google.com') === 0) {
+          return stored.trim().split('?')[0];
+        }
+      } catch (e) {}
+      if (typeof window !== 'undefined' && window.location && window.location.href && window.location.href.indexOf('https://script.google.com') === 0) {
+        return window.location.href.split('?')[0];
+      }
+      if (sUrl && sUrl.indexOf('http') === 0 && sUrl.indexOf('googleusercontent.com') === -1) {
+        return sUrl.split('?')[0];
+      }
+      return '';
+    }
+
+    // 頂層安全導航跳轉 (專門解決 GAS iframe 跨域被攔截與拒絕連線問題)
+    function navTo(page, params) {
+      var baseUrl = getSafeBaseUrl();
+      var target = baseUrl;
+
+      if (page) {
+        target = baseUrl ? (baseUrl + '?page=' + encodeURIComponent(page)) : ('?page=' + encodeURIComponent(page));
+      }
+
+      if (params && typeof params === 'object') {
+        var qs = [];
+        for (var k in params) {
+          if (params[k] !== undefined && params[k] !== null && params[k] !== '') {
+            qs.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
+          }
+        }
+        if (qs.length > 0) {
+          target += (target.indexOf('?') === -1 ? '?' : '&') + qs.join('&');
+        }
+      }
+
+      // 1. 最核心機制：動態建立 <a target="_top"> 觸發原生使用者點擊
+      try {
+        var link = document.createElement('a');
+        link.href = target;
+        link.target = '_top';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(function() {
+          if (link && link.parentNode) link.parentNode.removeChild(link);
+        }, 200);
+        return;
+      } catch (e) {}
+
+      // 2. 備援跳轉
+      try {
+        if (window.top && window.top !== window) {
           window.top.location.href = target;
           return;
         }
       } catch (e) {}
+
       window.location.href = target;
     }
+
+    // 動態更新導覽列所有超連結 href
+    function updateNavbarHrefs() {
+      var base = getSafeBaseUrl();
+      if (!base) return;
+      document.querySelectorAll('.top-navbar a[data-page]').forEach(function(el) {
+        var p = el.getAttribute('data-page');
+        el.href = p ? (base + '?page=' + p) : base;
+      });
+    }
+
+    try {
+      updateNavbarHrefs();
+    } catch (e) {}
 
     // 預設內建課表資料庫（若雲端課表連線成功會自動覆蓋更新）
     let TIMETABLE_DATABASE = {
@@ -1070,21 +1147,6 @@ input[type="checkbox"] {
     // 預設費率與設定
     let CURRENT_RATE = 405;
     let CURRENT_SCHOOL_NAME = '馬鳴國小';
-
-    // 判斷是否運行於 GAS 內部環境
-    function navTo(page) {
-      var serverUrl = "<?= appUrl ?>";
-      var baseUrl = (serverUrl && serverUrl.indexOf('http') === 0) ? serverUrl.split('?')[0] : window.location.href.split('?')[0];
-      baseUrl = baseUrl.replace(/\/userCodeAppPanel$/, '');
-      var target = page ? (baseUrl + '?page=' + page) : baseUrl;
-      try {
-        if (window.top && window.top.location) {
-          window.top.location.href = target;
-          return;
-        }
-      } catch (e) {}
-      window.location.href = target;
-    }
 
     // 全域快速套用請假天數函式
     window.setQuickDaysRange = function(targetCount) {

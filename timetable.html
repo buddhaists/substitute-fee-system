@@ -180,29 +180,33 @@ td.current-period-cell::after { content: '● 現在'; position: absolute; top: 
   </style>
 </head>
 <body>
-  <? var appUrl = (typeof scriptUrl !== 'undefined' && scriptUrl) ? scriptUrl : (typeof getScriptUrl === 'function' ? getScriptUrl() : ''); ?>
+  <? 
+    var rawUrl = (typeof appUrl !== 'undefined' && appUrl) ? appUrl : ((typeof scriptUrl !== 'undefined' && scriptUrl) ? scriptUrl : '');
+    var baseNavUrl = rawUrl ? rawUrl.split('?')[0] : '';
+  ?>
   <? var settingsData = (typeof systemSettings !== 'undefined' && systemSettings) ? JSON.stringify(systemSettings) : '{}'; ?>
   <script>
+    var SERVER_APP_URL = "<?= baseNavUrl ?>";
     var SERVER_SYSTEM_SETTINGS = <?!= settingsData ?>;
   </script>
 
   <div style="max-width: 1200px; margin: 0.5rem auto 0; padding: 0 0.75rem;">
     <!-- 全域頂部導航選單 (Top Navigation Menu) -->
     <nav class="top-navbar">
-      <a href="<?= appUrl ?>" class="nav-brand" target="_top" onclick="navTo(''); return false;">
+      <a href="<?= baseNavUrl ? baseNavUrl : 'javascript:void(0);' ?>" class="nav-brand" target="_top" data-page="" onclick="navTo(''); return false;">
         <i class="fa-solid fa-graduation-cap"></i> <span id="nav-school-name"><?= (typeof currentSchool !== 'undefined' && currentSchool) ? currentSchool : '全校課表' ?></span>
       </a>
       <div class="nav-menu">
-        <a href="<?= appUrl ?>" class="nav-item" target="_top" onclick="navTo(''); return false;">
+        <a href="<?= baseNavUrl ? baseNavUrl : 'javascript:void(0);' ?>" class="nav-item" target="_top" data-page="" onclick="navTo(''); return false;">
           <i class="fa-solid fa-house"></i> 首頁入口
         </a>
-        <a href="<?= appUrl ?>?page=timetable" class="nav-item active" target="_top" onclick="navTo('timetable'); return false;">
+        <a href="<?= baseNavUrl ? baseNavUrl + '?page=timetable' : 'javascript:void(0);' ?>" class="nav-item active" target="_top" data-page="timetable" onclick="navTo('timetable'); return false;">
           <i class="fa-solid fa-calendar-days"></i> 全校課表查詢
         </a>
-        <a href="<?= appUrl ?>?page=teacher" class="nav-item" target="_top" onclick="navTo('teacher'); return false;">
+        <a href="<?= baseNavUrl ? baseNavUrl + '?page=teacher' : 'javascript:void(0);' ?>" class="nav-item" target="_top" data-page="teacher" onclick="navTo('teacher'); return false;">
           <i class="fa-solid fa-file-signature"></i> 教師交接端
         </a>
-        <a href="<?= appUrl ?>?page=admin" class="nav-item" target="_top" onclick="navTo('admin'); return false;">
+        <a href="<?= baseNavUrl ? baseNavUrl + '?page=admin' : 'javascript:void(0);' ?>" class="nav-item" target="_top" data-page="admin" onclick="navTo('admin'); return false;">
           <i class="fa-solid fa-calculator"></i> 行政核銷端
         </a>
       </div>
@@ -788,6 +792,7 @@ function setupUI() {
     renderTeacherTimetable();
     renderRoomTimetable();
     setLiveToCurrentTime();
+    updateNavbarHrefs();
   } catch(e) {
     console.error("setupUI error:", e);
   }
@@ -1392,25 +1397,95 @@ function getCurrentPeriodSlot() {
   return null;
 }
 
-function navTo(page) {
-  var serverUrl = "<?= appUrl ?>";
-  var baseUrl = (serverUrl && serverUrl.indexOf('http') === 0) ? serverUrl.split('?')[0] : window.location.href.split('?')[0];
-  baseUrl = baseUrl.replace(/\/userCodeAppPanel$/, '');
-  var target = page ? (baseUrl + '?page=' + page) : baseUrl;
+// 取得絕對可靠的 GAS Web App 基底 URL (多軌備援，嚴格排斥 googleusercontent)
+function getSafeBaseUrl() {
+  // 1. 後端注入的伺服器變數 (優先)
+  var sUrl = (typeof SERVER_APP_URL !== 'undefined' && SERVER_APP_URL) ? String(SERVER_APP_URL).trim() : '';
+  if (!sUrl && typeof serverUrl !== 'undefined' && serverUrl) {
+    sUrl = String(serverUrl).trim();
+  }
+  if (sUrl && sUrl.indexOf('https://script.google.com') === 0) {
+    return sUrl.split('?')[0];
+  }
+
+  // 2. document.referrer (GAS iframe 外層就是頂層 script.google.com 網址)
+  if (typeof document !== 'undefined' && document.referrer && document.referrer.indexOf('https://script.google.com') === 0) {
+    return document.referrer.split('?')[0];
+  }
+
+  // 3. localStorage 中使用者曾儲存過的 URL (由行政端或教師端設定過)
   try {
-    if (window.top && window.top.location) {
+    var stored = localStorage.getItem('gas_web_app_url');
+    if (stored && stored.indexOf('https://script.google.com') === 0) {
+      return stored.trim().split('?')[0];
+    }
+  } catch (e) {}
+
+  // 4. 若當前直接在 script.google.com 執行 (非 iframe)
+  if (typeof window !== 'undefined' && window.location && window.location.href && window.location.href.indexOf('https://script.google.com') === 0) {
+    return window.location.href.split('?')[0];
+  }
+
+  // 5. 若有任何有效 http 網址且絕不包含 googleusercontent.com
+  if (sUrl && sUrl.indexOf('http') === 0 && sUrl.indexOf('googleusercontent.com') === -1) {
+    return sUrl.split('?')[0];
+  }
+
+  return '';
+}
+
+// 頂層安全導航跳轉 (專門解決 GAS iframe 跨域被攔截與拒絕連線問題)
+function navTo(page, params) {
+  var baseUrl = getSafeBaseUrl();
+  var target = baseUrl;
+
+  if (page) {
+    target = baseUrl ? (baseUrl + '?page=' + encodeURIComponent(page)) : ('?page=' + encodeURIComponent(page));
+  }
+
+  if (params && typeof params === 'object') {
+    var qs = [];
+    for (var k in params) {
+      if (params[k] !== undefined && params[k] !== null && params[k] !== '') {
+        qs.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
+      }
+    }
+    if (qs.length > 0) {
+      target += (target.indexOf('?') === -1 ? '?' : '&') + qs.join('&');
+    }
+  }
+
+  // 1. 最核心機制：動態建立 <a target="_top"> 觸發原生使用者點擊
+  // 現代瀏覽器在 sandbox iframe 內均開放此原生點擊跳轉，完全避開 DOMException
+  try {
+    var link = document.createElement('a');
+    link.href = target;
+    link.target = '_top';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(function() {
+      if (link && link.parentNode) link.parentNode.removeChild(link);
+    }, 200);
+    return;
+  } catch (e) {}
+
+  // 2. 備援跳轉
+  try {
+    if (window.top && window.top !== window) {
       window.top.location.href = target;
       return;
     }
   } catch (e) {}
+
   window.location.href = target;
 }
 
+// 點選課表「👉 申報代課」一鍵連動跳轉教師交接端
 function applySubstitute(className, teacherName, periodId, dayIdx) {
-  var serverUrl = "<?= appUrl ?>";
-  var baseUrl = (serverUrl && serverUrl.indexOf('http') === 0) ? serverUrl.split('?')[0] : window.location.href.split('?')[0];
-  baseUrl = baseUrl.replace(/\/userCodeAppPanel$/, '');
-  
+  var cleanTeacher = (teacherName || '').replace(/老師$/, '').replace(/師$/, '').trim();
+  var cleanClass = (className || '').replace(/班$/, '').trim();
+
   // 計算本週對應星期幾的實際日期
   var now = new Date();
   var currentDay = now.getDay(); // 0: 日, 1: 一 ... 6: 六
@@ -1424,34 +1499,28 @@ function applySubstitute(className, teacherName, periodId, dayIdx) {
   var d = String(targetDate.getDate()).padStart(2, '0');
   var dateStr = y + '-' + m + '-' + d;
 
-  var target = baseUrl + '?page=teacher' +
-    '&teacher=' + encodeURIComponent(teacherName || '') +
-    '&class=' + encodeURIComponent(className || '') +
-    '&period=' + encodeURIComponent(periodId || '') +
-    '&date=' + encodeURIComponent(dateStr);
-
-  // 優先使用 target="_top" 模擬超連結點擊，安全繞過 GAS iframe 跨域保護與參數遺失
-  try {
-    var link = document.createElement('a');
-    link.href = target;
-    link.target = '_top';
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    setTimeout(function() {
-      if (link && link.parentNode) link.parentNode.removeChild(link);
-    }, 150);
-    return;
-  } catch (e) {}
-
-  try {
-    if (window.top && window.top.location) {
-      window.top.location.href = target;
-      return;
-    }
-  } catch (e) {}
-  window.location.href = target;
+  navTo('teacher', {
+    teacher: cleanTeacher,
+    class: cleanClass,
+    period: periodId || '',
+    date: dateStr
+  });
 }
+
+// 動態更新導覽列所有超連結 href (確保右鍵開啟新分頁或懸停時均為正確完整網址)
+function updateNavbarHrefs() {
+  var base = getSafeBaseUrl();
+  if (!base) return;
+  document.querySelectorAll('.top-navbar a[data-page]').forEach(function(el) {
+    var p = el.getAttribute('data-page');
+    el.href = p ? (base + '?page=' + p) : base;
+  });
+}
+
+// 初始立即嘗試執行一次導覽列連結校正
+try {
+  updateNavbarHrefs();
+} catch (e) {}
 
 // 動態更新學校全域設定
 function applySchoolSettings(settings) {
