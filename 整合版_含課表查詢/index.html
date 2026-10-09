@@ -139,40 +139,90 @@ header p {
 
 /* Portal Specific Styles */
 .portal-container {
-  max-width: 900px;
+  max-width: 1060px;
   width: 100%;
   margin: 1.5rem auto;
   text-align: center;
 }
 
+/* 頂部 Tiffany Green 滾動進度條 */
+.scroll-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 4px;
+  width: 0%;
+  background: linear-gradient(90deg, #5eead4 0%, #0abab5 50%, #0d9488 100%);
+  box-shadow: 0 0 10px rgba(10, 186, 181, 0.8), 0 0 4px rgba(94, 234, 212, 0.6);
+  z-index: 99999;
+  transition: width 0.08s ease-out;
+  pointer-events: none;
+}
+
+/* Portal Header - Tiffany Green 風格 (Pantone 1837 原色調搭配精緻光暈) */
 .portal-header {
-  margin-bottom: 2rem;
-  background: linear-gradient(135deg, var(--primary-color), #0f172a);
-  padding: 2.5rem 2rem;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 2.25rem;
+  background: linear-gradient(135deg, #1dd3bd 0%, #0abab5 35%, #0d9488 75%, #0f544f 100%);
+  padding: 3rem 2rem;
   border-radius: var(--radius-lg);
   color: white;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 14px 28px -6px rgba(10, 186, 181, 0.4), 0 8px 12px -6px rgba(13, 148, 136, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.portal-header::before {
+  content: '';
+  position: absolute;
+  top: -45px;
+  right: -45px;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 70%);
+  pointer-events: none;
+}
+
+.portal-header::after {
+  content: '';
+  position: absolute;
+  bottom: -35px;
+  left: -35px;
+  width: 170px;
+  height: 170px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 70%);
+  pointer-events: none;
 }
 
 .portal-header h1 {
-  font-size: 2.2rem;
+  font-size: 2.3rem;
   font-weight: 800;
   color: #ffffff;
   margin-bottom: 0.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
+  gap: 0.85rem;
+  text-shadow: 0 2px 6px rgba(0, 45, 45, 0.3);
+  position: relative;
+  z-index: 1;
 }
 
 .portal-header p {
-  color: #93c5fd;
-  font-size: 1.1rem;
+  color: #e6fffa;
+  font-size: 1.15rem;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 3px rgba(0, 45, 45, 0.25);
+  position: relative;
+  z-index: 1;
 }
 
 .grid-portal {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
   gap: 2rem;
 }
 
@@ -184,7 +234,7 @@ header p {
   text-decoration: none;
   color: var(--text-color);
   box-shadow: var(--shadow);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -194,9 +244,9 @@ header p {
 }
 
 .portal-card:hover {
-  transform: translateY(-6px);
+  transform: translateY(-8px);
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  border-color: #3b82f6;
+  border-color: #0abab5;
 }
 
 .icon-wrapper {
@@ -208,16 +258,16 @@ header p {
   justify-content: center;
   font-size: 2.2rem;
   margin-bottom: 1.5rem;
-  transition: all 0.3s;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .portal-card:hover .icon-wrapper {
-  transform: scale(1.1);
+  transform: scale(1.12);
 }
 
 .timetable-card .icon-wrapper {
-  background-color: #e0f2fe;
-  color: #0284c7;
+  background-color: #f0fdfa;
+  color: #0d9488;
 }
 
 .teacher-card .icon-wrapper {
@@ -247,10 +297,202 @@ header p {
   margin-top: 1.5rem;
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--primary-color);
+  color: #0d9488;
   display: flex;
   align-items: center;
   gap: 0.35rem;
+}
+
+/* ============================================================ */
+/* Scroll-Triggered 動畫效果系統 (IntersectionObserver)         */
+/* ============================================================ */
+.scroll-trigger {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.scroll-trigger.from-left {
+  transform: translateX(-35px);
+}
+
+.scroll-trigger.from-right {
+  transform: translateX(35px);
+}
+
+.scroll-trigger.scale-up {
+  transform: scale(0.95) translateY(15px);
+}
+
+/* 滾動進入視窗觸發狀態 */
+.scroll-trigger.scroll-in {
+  opacity: 1;
+  transform: translate(0, 0) scale(1);
+}
+
+/* 階梯遞延 (Stagger Delays) */
+.stagger-1 { transition-delay: 0.08s; }
+.stagger-2 { transition-delay: 0.16s; }
+.stagger-3 { transition-delay: 0.24s; }
+.stagger-4 { transition-delay: 0.32s; }
+
+/* 回到頂部按鈕 (Floating Back to Top) */
+.back-to-top-btn {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0abab5, #0d9488);
+  color: white;
+  border: none;
+  box-shadow: 0 4px 15px rgba(10, 186, 181, 0.4);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(20px);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 999;
+}
+
+.back-to-top-btn.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.back-to-top-btn:hover {
+  background: linear-gradient(135deg, #2dd4bf, #0abab5);
+  transform: translateY(-4px) scale(1.08);
+  box-shadow: 0 8px 24px rgba(10, 186, 181, 0.55);
+}
+
+/* 系統特色與作業流程展示區塊 */
+.portal-section {
+  margin-top: 3.5rem;
+  text-align: left;
+}
+
+.portal-section-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.portal-section-header h3 {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+}
+
+.portal-section-header p {
+  color: #64748b;
+  font-size: 0.95rem;
+  margin-top: 0.35rem;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.5rem;
+}
+
+.feature-box {
+  background: white;
+  border-radius: 14px;
+  padding: 1.75rem 1.5rem;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow);
+  transition: all 0.3s ease;
+}
+
+.feature-box:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: #0abab5;
+}
+
+.feature-box-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: #f0fdfa;
+  color: #0d9488;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  margin-bottom: 1rem;
+}
+
+.feature-box h4 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 0.45rem;
+}
+
+.feature-box p {
+  color: #64748b;
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.workflow-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.5rem;
+}
+
+.workflow-card {
+  background: white;
+  border-radius: 14px;
+  padding: 1.75rem 1.5rem;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow);
+  transition: all 0.3s ease;
+}
+
+.workflow-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: #0abab5;
+}
+
+.step-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0abab5, #0d9488);
+  color: white;
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin-bottom: 0.85rem;
+}
+
+.workflow-card h4 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 0.45rem;
+}
+
+.workflow-card p {
+  color: #64748b;
+  font-size: 0.88rem;
+  line-height: 1.55;
 }
 
 footer {
@@ -277,9 +519,20 @@ footer {
   background-color: #fef3c7;
   color: #92400e;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-trigger {
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
   </style>
 </head>
 <body>
+  <!-- 頂部 Tiffany Green 滾動進度條 (Scroll-Triggered Progress Bar) -->
+  <div class="scroll-progress-bar" id="scroll-progress"></div>
+
   <? 
     var rawUrl = (typeof appUrl !== 'undefined' && appUrl) ? appUrl : ((typeof scriptUrl !== 'undefined' && scriptUrl) ? scriptUrl : '');
     var baseNavUrl = rawUrl ? rawUrl.split('?')[0] : '';
@@ -313,7 +566,8 @@ footer {
       </div>
     </nav>
 
-    <header class="portal-header">
+    <!-- 首頁標題橫幅 - Tiffany Green (Scroll-Triggered) -->
+    <header class="portal-header scroll-trigger scale-up">
       <h1><i class="fa-solid fa-graduation-cap"></i> 代課費計算與管理系統</h1>
       <p id="portal-sub-text">請選擇您要進入的模組</p>
     </header>
@@ -321,7 +575,7 @@ footer {
     <div class="grid-portal">
 
       <!-- Timetable Portal Link (NEW) -->
-      <a href="<?= appUrl ?>?page=timetable" class="portal-card timetable-card" target="_top" onclick="navTo('timetable'); return false;">
+      <a href="<?= appUrl ?>?page=timetable" class="portal-card timetable-card scroll-trigger stagger-1" target="_top" onclick="navTo('timetable'); return false;">
         <div class="icon-wrapper">
           <i class="fa-solid fa-calendar-days"></i>
         </div>
@@ -333,7 +587,7 @@ footer {
       </a>
       
       <!-- Teacher Portal Link -->
-      <a href="<?= appUrl ?>?page=teacher" class="portal-card teacher-card" target="_top" onclick="navTo('teacher'); return false;">
+      <a href="<?= appUrl ?>?page=teacher" class="portal-card teacher-card scroll-trigger stagger-2" target="_top" onclick="navTo('teacher'); return false;">
         <div class="icon-wrapper">
           <i class="fa-solid fa-file-signature"></i>
         </div>
@@ -345,7 +599,7 @@ footer {
       </a>
       
       <!-- Admin Portal Link -->
-      <a href="<?= appUrl ?>?page=admin" class="portal-card admin-card" target="_top" onclick="navTo('admin'); return false;">
+      <a href="<?= appUrl ?>?page=admin" class="portal-card admin-card scroll-trigger stagger-3" target="_top" onclick="navTo('admin'); return false;">
         <div class="icon-wrapper">
           <i class="fa-solid fa-calculator"></i>
         </div>
@@ -357,9 +611,59 @@ footer {
       </a>
       
     </div>
+
+    <!-- 核心功能與特色亮點 (Scroll-Triggered) -->
+    <div class="portal-section scroll-trigger">
+      <div class="portal-section-header">
+        <h3><i class="fa-solid fa-sparkles" style="color: #0abab5;"></i> 系統核心特色與極速架構</h3>
+        <p>結合現代前端快取與雲端自動化，提供極致流暢的教務行政體驗</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-box scroll-trigger stagger-1">
+          <div class="feature-box-icon"><i class="fa-solid fa-bolt"></i></div>
+          <h4>0 毫秒極速瞬開</h4>
+          <p>背景閒置智慧預熱課表資料至 LocalStorage 快取，點擊課表即時呈現零延遲，切換流暢如絲。</p>
+        </div>
+        <div class="feature-box scroll-trigger stagger-2">
+          <div class="feature-box-icon"><i class="fa-solid fa-shield-halved"></i></div>
+          <h4>多軌防拒絕連線導航</h4>
+          <p>獨家頂層原生換頁架構，徹底防禦 Google Apps Script iframe 跨域連線中斷與 Google 登入轉向阻擋。</p>
+        </div>
+        <div class="feature-box scroll-trigger stagger-3">
+          <div class="feature-box-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+          <h4>一鍵精算與清冊列印</h4>
+          <p>全自動核對鐘點費率、勞保勞退與代扣稅額，一鍵匯出月度印領清冊與 A4 紙本交接單。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 作業流程指引 (Scroll-Triggered) -->
+    <div class="portal-section scroll-trigger">
+      <div class="portal-section-header">
+        <h3><i class="fa-solid fa-route" style="color: #0abab5;"></i> 代課差假作業三步驟</h3>
+        <p>標準化直覺作業流程，讓請假交接與行政核銷井然有序</p>
+      </div>
+      <div class="workflow-steps">
+        <div class="workflow-card scroll-trigger stagger-1">
+          <div class="step-badge">1</div>
+          <h4>查詢課表與代課確認</h4>
+          <p>進入全校課表查詢，快速掌握班級、科任或專科教室課表，即時時鐘與當前節次高亮讓查課一目了然。</p>
+        </div>
+        <div class="workflow-card scroll-trigger stagger-2">
+          <div class="step-badge">2</div>
+          <h4>教師線上填報交接</h4>
+          <p>請假教師進入交接端填寫假別與教學進度叮嚀，系統即時生成 A4 交接單，可列印備查或雲端送出。</p>
+        </div>
+        <div class="workflow-card scroll-trigger stagger-3">
+          <div class="step-badge">3</div>
+          <h4>行政月底結算核銷</h4>
+          <p>行政人員於核銷端統整請假紀錄與代課教師明細，系統自動套用最新法規費率並產出各類報表。</p>
+        </div>
+      </div>
+    </div>
     
     <!-- 系統維護人員頁尾資訊 -->
-    <footer style="text-align: center; padding: 1.5rem 1rem; margin-top: 3rem; border-top: 1px solid var(--border-color); color: var(--text-light); font-size: 0.85rem;">
+    <footer style="text-align: center; padding: 1.5rem 1rem; margin-top: 3.5rem; border-top: 1px solid var(--border-color); color: var(--text-light); font-size: 0.85rem;">
       <div><span id="footer-school-name"><?= (typeof currentSchool !== 'undefined' && currentSchool) ? currentSchool : '馬鳴國小' ?></span> · 代課費計算與管理系統</div>
       <div style="margin-top: 0.35rem;">
         <i class="fa-solid fa-server" style="color: #10b981;"></i> 系統運作與網管維護：<strong id="footer-maintainer" style="color: var(--text-color);"><?= (typeof currentMaintainer !== 'undefined' && currentMaintainer) ? currentMaintainer : '資訊執秘 蔡志益' ?></strong>
@@ -367,6 +671,11 @@ footer {
     </footer>
     
   </div>
+
+  <!-- 回到頂部浮動按鈕 (Scroll-Triggered Back-to-Top) -->
+  <button class="back-to-top-btn" id="back-to-top" title="回到頂部" aria-label="回到頂部" onclick="window.scrollTo({top: 0, behavior: 'smooth'}); return false;">
+    <i class="fa-solid fa-arrow-up"></i>
+  </button>
 
   <script>
     // 取得絕對可靠的 GAS Web App 基底 URL (多軌備援，嚴格排斥 googleusercontent)
@@ -523,6 +832,69 @@ footer {
         prefetchTimetableData();
       }
     }, 350);
+
+    // ============================================================
+    // 🌟 Scroll-Triggered 動畫效果與進度指示器 (IntersectionObserver)
+    // ============================================================
+    function initScrollTrigger() {
+      const scrollElements = document.querySelectorAll('.scroll-trigger');
+
+      if ('IntersectionObserver' in window) {
+        const observer = new IntersectionObserver(function(entries, obs) {
+          entries.forEach(function(entry) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('scroll-in');
+              // 進場後解除觀察以最佳化效能與資源釋放
+              obs.unobserve(entry.target);
+            }
+          });
+        }, {
+          root: null,
+          threshold: 0.1,
+          rootMargin: '0px 0px -30px 0px'
+        });
+
+        scrollElements.forEach(function(el) {
+          observer.observe(el);
+        });
+      } else {
+        // 舊型瀏覽器降級相容：直接全部浮現
+        scrollElements.forEach(function(el) {
+          el.classList.add('scroll-in');
+        });
+      }
+
+      // 頂部 Tiffany 滾動進度條與回到頂部按鈕即時動態計算
+      const progressBar = document.getElementById('scroll-progress');
+      const backToTopBtn = document.getElementById('back-to-top');
+
+      function handleScroll() {
+        const winScroll = document.documentElement.scrollTop || document.body.scrollTop;
+        const scrollHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+
+        if (progressBar) {
+          const scrolledPercent = scrollHeight > 0 ? (winScroll / scrollHeight) * 100 : 0;
+          progressBar.style.width = scrolledPercent + '%';
+        }
+
+        if (backToTopBtn) {
+          if (winScroll > 220) {
+            backToTopBtn.classList.add('visible');
+          } else {
+            backToTopBtn.classList.remove('visible');
+          }
+        }
+      }
+
+      window.addEventListener('scroll', handleScroll, { passive: true });
+      handleScroll();
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initScrollTrigger);
+    } else {
+      initScrollTrigger();
+    }
   </script>
 </body>
 </html>
