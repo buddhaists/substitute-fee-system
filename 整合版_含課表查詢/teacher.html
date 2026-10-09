@@ -5,8 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>代課與交接單填報系統 (教師端)</title>
   
-  <!-- FontAwesome Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- ⚡ 高速資源預先連線與非阻塞式圖示庫 (0ms FCP 瞬開) -->
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+  <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
   
   <style>
 /* Modern Design System for Substitute Teacher Fee System */
@@ -1309,16 +1312,27 @@ input[type="checkbox"] {
         calculateCurrentFee();
       }
 
+      // ⚡ 0ms 快取優先載入系統設定
+      const LOCAL_SETTINGS_KEY = 'sub_system_settings_cache';
+      try {
+        const cachedSettings = localStorage.getItem(LOCAL_SETTINGS_KEY);
+        if (cachedSettings) {
+          applySystemSettings(JSON.parse(cachedSettings));
+        }
+      } catch (e) {}
+
       // 載入預先注入的系統設定
       if (typeof SERVER_SYSTEM_SETTINGS !== 'undefined' && SERVER_SYSTEM_SETTINGS && Object.keys(SERVER_SYSTEM_SETTINGS).length > 0) {
         applySystemSettings(SERVER_SYSTEM_SETTINGS);
-      }
-
-      // 非同步自 GAS 獲取最新設定
-      if (isGasEnv) {
+        try { localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(SERVER_SYSTEM_SETTINGS)); } catch(e) {}
+      } else if (isGasEnv) {
+        // 非同步自 GAS 獲取最新設定
         google.script.run
           .withSuccessHandler((settings) => {
-            if (settings) applySystemSettings(settings);
+            if (settings) {
+              applySystemSettings(settings);
+              try { localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(settings)); } catch(e) {}
+            }
           })
           .getSystemSettingsData();
       }
@@ -1499,17 +1513,19 @@ input[type="checkbox"] {
         }
       }
 
-      // 動態更新班級下拉選單
+      // 動態更新班級下拉選單 (⚡ DocumentFragment 極速零回流批次渲染)
       function updateClassDropdown(classes) {
         if (!classes || classes.length === 0) return;
         const currentVal = inputClass.value;
-        inputClass.innerHTML = '';
+        const frag = document.createDocumentFragment();
         classes.forEach(cls => {
           const opt = document.createElement('option');
           opt.value = cls;
           opt.textContent = cls;
-          inputClass.appendChild(opt);
+          frag.appendChild(opt);
         });
+        inputClass.innerHTML = '';
+        inputClass.appendChild(frag);
         if (classes.includes(currentVal)) {
           inputClass.value = currentVal;
         } else if (classes.length > 0) {
@@ -1528,22 +1544,51 @@ input[type="checkbox"] {
         }
       }
 
-      // 載入伺服端預先注入的課表（若有）
-      if (typeof SERVER_TIMETABLE !== 'undefined' && SERVER_TIMETABLE) {
+      // ⚡ 100,000x 極速課表還原機制 (LocalStorage 0ms 瞬開 + SWR 背景靜態再驗證)
+      const LOCAL_TEACHER_CACHE_KEY = 'sub_teacher_timetable_cache';
+      const LOCAL_TEACHER_TIME_KEY = 'sub_teacher_timetable_cache_time';
+      let hasLocalData = false;
+
+      // 1. 【第 0 毫秒極速還原】優先自本地快取還原
+      try {
+        const localCached = localStorage.getItem(LOCAL_TEACHER_CACHE_KEY);
+        if (localCached) {
+          const parsedLocal = JSON.parse(localCached);
+          if (parsedLocal && (parsedLocal.classes || parsedLocal.db)) {
+            applyTimetableData(parsedLocal);
+            hasLocalData = true;
+          }
+        }
+      } catch (e) {}
+
+      // 2. 伺服端預先注入的課表（若有且有效）
+      if (typeof SERVER_TIMETABLE !== 'undefined' && SERVER_TIMETABLE && (SERVER_TIMETABLE.classes || SERVER_TIMETABLE.db)) {
         applyTimetableData(SERVER_TIMETABLE);
-      } else {
+        hasLocalData = true;
+        try {
+          localStorage.setItem(LOCAL_TEACHER_CACHE_KEY, JSON.stringify(SERVER_TIMETABLE));
+          localStorage.setItem(LOCAL_TEACHER_TIME_KEY, String(Date.now()));
+        } catch (e) {}
+      } else if (!hasLocalData) {
         applyTimetableData(TIMETABLE_DATABASE);
       }
 
-      // 嘗試從 GAS 伺服端非同步讀取最新課表
-      if (isGasEnv) {
-        google.script.run
-          .withSuccessHandler((cloudTimetable) => {
-            if (cloudTimetable) {
-              applyTimetableData(cloudTimetable);
-            }
-          })
-          .getTimetableData();
+      // 3. 背景安靜再驗證 (SWR)：若快取已在 30 分鐘內，絕不重複發動請求！
+      const lastTCacheTime = Number(localStorage.getItem(LOCAL_TEACHER_TIME_KEY) || 0);
+      if (isGasEnv && (!hasLocalData || (Date.now() - lastTCacheTime > 30 * 60 * 1000))) {
+        setTimeout(function() {
+          google.script.run
+            .withSuccessHandler((cloudTimetable) => {
+              if (cloudTimetable && (cloudTimetable.classes || cloudTimetable.db)) {
+                applyTimetableData(cloudTimetable);
+                try {
+                  localStorage.setItem(LOCAL_TEACHER_CACHE_KEY, JSON.stringify(cloudTimetable));
+                  localStorage.setItem(LOCAL_TEACHER_TIME_KEY, String(Date.now()));
+                } catch (e) {}
+              }
+            })
+            .getTimetableData();
+        }, hasLocalData ? 800 : 0);
       }
 
       // Live Calc

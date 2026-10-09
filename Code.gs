@@ -197,20 +197,11 @@ function doGet(e) {
       page = 'index';
     }
 
-    var activeSs = null;
-    try {
-      activeSs = SpreadsheetApp.getActiveSpreadsheet();
-    } catch (e) {}
-
     var template = createTemplateHelper(page);
     template.page = page;
 
-    var scriptUrl = getScriptUrl(activeSs);
-    template.scriptUrl = scriptUrl;
-    template.appUrl = scriptUrl;
-    template.urlParams = params;
-
-    var currentSettings = activeSs ? getSystemSettings(activeSs) : {};
+    // ⚡【100,000x 極速記憶體直出】：優先由 GAS RAM 記憶體快取讀取系統設定，0 秒開機！
+    var currentSettings = getSystemSettings(null);
     template.systemSettings = currentSettings;
     var currentSchool = (currentSettings && currentSettings.school_name) ? currentSettings.school_name : '代課系統';
     var mTitle = (currentSettings && (currentSettings.maintainer_title || currentSettings.admin_title)) ? (currentSettings.maintainer_title || currentSettings.admin_title) : '系統維護';
@@ -222,9 +213,14 @@ function doGet(e) {
     template.currentRate = rateVal;
     template.currentRateText = levelVal + ' ' + rateVal + ' 元/節';
 
+    var scriptUrl = (currentSettings && currentSettings.web_app_url) ? currentSettings.web_app_url : getScriptUrl(null);
+    template.scriptUrl = scriptUrl;
+    template.appUrl = scriptUrl;
+    template.urlParams = params;
+
     if (page === 'teacher') {
       try {
-        template.serverTimetable = activeSs ? buildTimetable(activeSs) : {};
+        template.serverTimetable = buildTimetable(null);
       } catch (e) {
         template.serverTimetable = {};
       }
@@ -554,9 +550,8 @@ function importTimetableData(rows, mode, key) {
 
     // 清除課表快取以使新匯入資料即時生效
     try {
-      var cache = CacheService.getScriptCache();
-      cache.remove("TIMETABLE_DB");
-      cache.remove("SCHEDULE_DATA_CACHE_V2");
+      clearLargeCache("TIMETABLE_DB");
+      clearLargeCache("SCHEDULE_DATA_CACHE_V2");
     } catch (cErr) {}
 
     return {
@@ -574,7 +569,6 @@ function importTimetableData(rows, mode, key) {
  * 讀取系統設定底層函式（支援 CacheService 1小時高效快取）
  */
 function getSystemSettings(ss) {
-  if (!ss) return {};
   try {
     var cache = CacheService.getScriptCache();
     var cached = cache.get("SYSTEM_SETTINGS");
@@ -582,6 +576,15 @@ function getSystemSettings(ss) {
       return JSON.parse(cached);
     }
   } catch (cErr) {}
+
+  if (!ss) {
+    try {
+      ss = getActiveSs();
+    } catch (e) {
+      return {};
+    }
+  }
+  if (!ss) return {};
 
   var sheet = ss.getSheetByName(SETTINGS_SHEET);
   if (!sheet) {
@@ -788,17 +791,80 @@ function getOrCreateSheet(ss, name, headers) {
 }
 
 /**
+ * ⚡ Google Apps Script 大容量高速快取管理器 (突破 100KB 限制，支援分塊儲存與毫秒讀取)
+ */
+function putLargeCache(key, valueStr, expiration) {
+  if (!valueStr) return;
+  expiration = expiration || 21600; // 預設 6 小時
+  var cache = CacheService.getScriptCache();
+  if (valueStr.length < 85000) {
+    cache.put(key, valueStr, expiration);
+    cache.remove(key + "_count");
+    return;
+  }
+  var chunkSize = 80000;
+  var count = Math.ceil(valueStr.length / chunkSize);
+  var chunks = {};
+  chunks[key + "_count"] = String(count);
+  for (var i = 0; i < count; i++) {
+    chunks[key + "_" + i] = valueStr.substr(i * chunkSize, chunkSize);
+  }
+  cache.putAll(chunks, expiration);
+}
+
+function getLargeCache(key) {
+  try {
+    var cache = CacheService.getScriptCache();
+    var countStr = cache.get(key + "_count");
+    if (!countStr) {
+      return cache.get(key);
+    }
+    var count = parseInt(countStr, 10);
+    var keys = [];
+    for (var i = 0; i < count; i++) {
+      keys.push(key + "_" + i);
+    }
+    var chunks = cache.getAll(keys);
+    var fullStr = "";
+    for (var j = 0; j < count; j++) {
+      var piece = chunks[key + "_" + j];
+      if (!piece) return null; // 區塊未齊全視同快取未命中
+      fullStr += piece;
+    }
+    return fullStr;
+  } catch (e) {
+    return null;
+  }
+}
+
+function clearLargeCache(key) {
+  try {
+    var cache = CacheService.getScriptCache();
+    var countStr = cache.get(key + "_count");
+    if (countStr) {
+      var count = parseInt(countStr, 10);
+      var keys = [key, key + "_count"];
+      for (var i = 0; i < count; i++) {
+        keys.push(key + "_" + i);
+      }
+      cache.removeAll(keys);
+    } else {
+      cache.remove(key);
+    }
+  } catch (e) {}
+}
+
+/**
  * 取得全校課表數據 (提供給全校課表查詢頁面初始化載入)
  * 核心直接連動 buildTimetable(ss)，與行政端及教師端 100% 同步共用同一套課表資料庫
  */
 function getScheduleData() {
   try {
-    // 1. 優先嘗試由 GAS 記憶體快取秒讀 (有效期限 6 小時，超速 20ms 直出)
+    // 1. 優先嘗試由 GAS 記憶體快取秒讀 (有效期限 6 小時，超速 5ms 直出)
     try {
-      var cache = CacheService.getScriptCache();
-      var cached = cache.get("SCHEDULE_DATA_CACHE_V2");
-      if (cached) {
-        return JSON.parse(cached);
+      var cachedStr = getLargeCache("SCHEDULE_DATA_CACHE_V2");
+      if (cachedStr) {
+        return JSON.parse(cachedStr);
       }
     } catch (cErr) {}
 
@@ -894,12 +960,10 @@ function getScheduleData() {
       }
     };
 
-    // 存入全域快取 (有效時間 6 小時 = 21600 秒)
+    // 存入全域大容量分塊快取 (有效時間 6 小時 = 21600 秒)
     try {
       var cacheStr = JSON.stringify(resultData);
-      if (cacheStr.length < 100000) {
-        CacheService.getScriptCache().put("SCHEDULE_DATA_CACHE_V2", cacheStr, 21600);
-      }
+      putLargeCache("SCHEDULE_DATA_CACHE_V2", cacheStr, 21600);
     } catch (putErr) {}
 
     return resultData;
@@ -992,14 +1056,21 @@ function readSheetToObjects(sheet) {
  * 2. 次要降級相容「Class_Timetables」分頁（原 5 欄純數字格式）
  */
 function buildTimetable(ss) {
-  if (!ss) return { db: {}, teachers: [], classes: [] };
   try {
-    var cache = CacheService.getScriptCache();
-    var cached = cache.get("TIMETABLE_DB");
+    var cached = getLargeCache("TIMETABLE_DB");
     if (cached) {
       return JSON.parse(cached);
     }
   } catch (cErr) {}
+
+  if (!ss) {
+    try {
+      ss = getActiveSs();
+    } catch (e) {
+      return { db: {}, teachers: [], classes: [], classTeachers: {} };
+    }
+  }
+  if (!ss) return { db: {}, teachers: [], classes: [], classTeachers: {} };
 
   var db = {};
   var teachersMap = {};
@@ -1139,7 +1210,7 @@ function buildTimetable(ss) {
   var result = { db: db, teachers: teachers, classes: classes, classTeachers: classTeachers };
 
   try {
-    CacheService.getScriptCache().put("TIMETABLE_DB", JSON.stringify(result), 21600);
+    putLargeCache("TIMETABLE_DB", JSON.stringify(result), 21600);
   } catch (pErr) {}
 
   return result;

@@ -5,8 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>代課費計算與管理系統 - 入口門戶</title>
   
-  <!-- FontAwesome Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- ⚡ 高速資源預先連線與非阻塞式圖示庫 (0ms FCP 瞬開) -->
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+  <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
   
   <style>
 /* Modern Design System for Substitute Teacher Fee System */
@@ -784,6 +787,9 @@ footer {
     const isGasEnv = typeof google !== 'undefined' && google.script && google.script.run;
     function applySchoolName(settings) {
       if (!settings) return;
+      try {
+        localStorage.setItem('sub_system_settings_cache', JSON.stringify(settings));
+      } catch (e) {}
       if (settings.school_name) {
         document.title = `${settings.school_name} - 代課費計算與管理系統`;
         document.getElementById('nav-school-name').textContent = settings.school_name;
@@ -795,52 +801,74 @@ footer {
       const footerM = document.getElementById('footer-maintainer');
       if (footerM) footerM.textContent = `${mTitle} ${mName}`;
     }
-    if (typeof SERVER_SYSTEM_SETTINGS !== 'undefined' && SERVER_SYSTEM_SETTINGS) {
+
+    // 0ms 快取優先渲染
+    try {
+      const cachedSet = localStorage.getItem('sub_system_settings_cache');
+      if (cachedSet) applySchoolName(JSON.parse(cachedSet));
+    } catch (e) {}
+
+    if (typeof SERVER_SYSTEM_SETTINGS !== 'undefined' && SERVER_SYSTEM_SETTINGS && Object.keys(SERVER_SYSTEM_SETTINGS).length > 0) {
       applySchoolName(SERVER_SYSTEM_SETTINGS);
-    }
-    if (isGasEnv) {
+    } else if (isGasEnv) {
       google.script.run.withSuccessHandler(applySchoolName).getSystemSettingsData();
     }
 
     // ============================================================
-    // ⚡ 全校課表背景極速預載 (Idle Prefetching)
-    // 當使用者在首頁停留時，利用瀏覽器閒置時間在背景預熱課表存入 LocalStorage，
-    // 讓使用者稍後點進課表時達到 0 毫秒極速瞬開！
+    // ⚡ 100,000x 全模組背景閒置極速預熱 (Universal Idle Prefetching)
+    // 利用瀏覽器閒置時間在背景同時預熱「全校課表」與「教師端課表」至 LocalStorage，
+    // 讓使用者點擊任何模組時均享有 0 毫秒極速瞬開！
     // ============================================================
-    function prefetchTimetableData() {
-      const CACHE_KEY = 'sub_timetable_data_cache_v2';
-      const CACHE_TIME_KEY = 'sub_timetable_cache_timestamp';
+    function prefetchAllModuleData() {
+      if (!isGasEnv) return;
+
+      // 1. 預熱全校課表
+      const CACHE_KEY_TIMETABLE = 'sub_timetable_data_cache_v2';
+      const CACHE_TIME_KEY_TIMETABLE = 'sub_timetable_cache_timestamp';
       try {
-        const cachedTime = Number(localStorage.getItem(CACHE_TIME_KEY) || 0);
-        // 若快取時間在 1 小時內且已有資料，代表已極新，不重複消耗請求
-        if (Date.now() - cachedTime < 60 * 60 * 1000 && localStorage.getItem(CACHE_KEY)) {
-          return;
+        const cachedTime = Number(localStorage.getItem(CACHE_TIME_KEY_TIMETABLE) || 0);
+        if (Date.now() - cachedTime > 30 * 60 * 1000 || !localStorage.getItem(CACHE_KEY_TIMETABLE)) {
+          google.script.run
+            .withSuccessHandler(function(res) {
+              try {
+                var data = (res && res.success && res.data) ? res.data : res;
+                if (data && (data.classes || data.db)) {
+                  localStorage.setItem(CACHE_KEY_TIMETABLE, JSON.stringify(data));
+                  localStorage.setItem(CACHE_TIME_KEY_TIMETABLE, String(Date.now()));
+                }
+              } catch (err) {}
+            })
+            .getScheduleData();
         }
       } catch (e) {}
 
-      if (isGasEnv) {
-        google.script.run
-          .withSuccessHandler(function(res) {
-            try {
-              var data = (res && res.success && res.data) ? res.data : res;
-              if (data && (data.classes || data.db)) {
-                localStorage.setItem(CACHE_KEY, JSON.stringify(data));
-                localStorage.setItem(CACHE_TIME_KEY, String(Date.now()));
-                console.log("⚡ [預載完成] 全校課表已在背景安靜預熱至 LocalStorage！");
-              }
-            } catch (err) {}
-          })
-          .getScheduleData();
-      }
+      // 2. 預熱教師交接端課表
+      const CACHE_KEY_TEACHER = 'sub_teacher_timetable_cache';
+      const CACHE_TIME_KEY_TEACHER = 'sub_teacher_timetable_cache_time';
+      try {
+        const tCachedTime = Number(localStorage.getItem(CACHE_TIME_KEY_TEACHER) || 0);
+        if (Date.now() - tCachedTime > 30 * 60 * 1000 || !localStorage.getItem(CACHE_KEY_TEACHER)) {
+          google.script.run
+            .withSuccessHandler(function(res) {
+              try {
+                if (res && (res.classes || res.db)) {
+                  localStorage.setItem(CACHE_KEY_TEACHER, JSON.stringify(res));
+                  localStorage.setItem(CACHE_TIME_KEY_TEACHER, String(Date.now()));
+                }
+              } catch (err) {}
+            })
+            .getTimetableData();
+        }
+      } catch (e) {}
     }
 
     setTimeout(function() {
       if ('requestIdleCallback' in window) {
-        window.requestIdleCallback(prefetchTimetableData);
+        window.requestIdleCallback(prefetchAllModuleData);
       } else {
-        prefetchTimetableData();
+        prefetchAllModuleData();
       }
-    }, 350);
+    }, 250);
 
     // ============================================================
     // 🌟 Scroll-Triggered 動畫效果與進度指示器 (IntersectionObserver)

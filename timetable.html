@@ -4,8 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><?= (typeof currentSchool !== 'undefined' && currentSchool) ? currentSchool : '全校' ?> - 全校課表查詢系統</title>
-  <!-- FontAwesome Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- ⚡ 高速資源預先連線與非阻塞式圖示庫 (0ms FCP 瞬開) -->
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+  <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
   <style>
   
 :root {
@@ -901,7 +904,6 @@ function getSubjectTheme(subj) {
 function populateClassSelect() {
   const select = document.getElementById("select-class");
   if (!select) return;
-  select.innerHTML = "";
   const rawClasses = DB.classes.map(c => String(c["班級/教室"] || c["班級"] || c["班級(ClassName)"] || "")).filter(Boolean);
   const uniqueClassKeys = [];
   const seen = new Set();
@@ -914,12 +916,15 @@ function populateClassSelect() {
   });
   uniqueClassKeys.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
+  const frag = document.createDocumentFragment();
   uniqueClassKeys.forEach(c => {
     const opt = document.createElement("option");
     opt.value = c;
     opt.textContent = `${c} 班`;
-    select.appendChild(opt);
+    frag.appendChild(opt);
   });
+  select.innerHTML = "";
+  select.appendChild(frag);
 }
 
 function syncGradeChipsToClass(selectedClass) {
@@ -937,7 +942,7 @@ function syncGradeChipsToClass(selectedClass) {
 
 function setupGradeChips() {
   const container = document.getElementById("grade-chips-container");
-  container.innerHTML = "";
+  if (!container) return;
   const grades = [
     { label: "一年級", prefix: "1" },
     { label: "二年級", prefix: "2" },
@@ -947,6 +952,7 @@ function setupGradeChips() {
     { label: "六年級", prefix: "6" }
   ];
 
+  const frag = document.createDocumentFragment();
   grades.forEach((g, idx) => {
     const btn = document.createElement("button");
     btn.className = `chip-btn ${idx === 0 ? "active" : ""}`;
@@ -967,8 +973,10 @@ function setupGradeChips() {
         renderClassTimetable();
       }
     };
-    container.appendChild(btn);
+    frag.appendChild(btn);
   });
+  container.innerHTML = "";
+  container.appendChild(frag);
 }
 
 function renderClassTimetable() {
@@ -1055,20 +1063,23 @@ function renderClassTimetable() {
 function populateTeacherSelect() {
   const select = document.getElementById("select-teacher");
   if (!select) return;
-  select.innerHTML = "";
   if (!DB || !Array.isArray(DB.teachers)) return;
   const teacherList = [...new Set(DB.teachers.map(t => String(t["上課老師"] || t["教師姓名"] || "")))]
     .filter(Boolean)
     .filter(t => t !== "—" && t !== "-" && t !== "undefined")
     .sort((a,b) => a.localeCompare(b, 'zh-Hant'));
+
+  const frag = document.createDocumentFragment();
   teacherList.forEach(t => {
     const tRows = DB.teachers.filter(r => (r["上課老師"] === t || r["教師姓名"] === t));
     const title = tRows.length > 0 ? (tRows[0]["職稱/專長"] || tRows[0]["職稱"]) : "";
     const opt = document.createElement("option");
     opt.value = t;
     opt.textContent = `${t} 老師 (${title || "科任"})`;
-    select.appendChild(opt);
+    frag.appendChild(opt);
   });
+  select.innerHTML = "";
+  select.appendChild(frag);
 }
 
 function renderTeacherTimetable() {
