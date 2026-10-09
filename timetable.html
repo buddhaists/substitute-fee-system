@@ -455,43 +455,67 @@ function initData() {
   }
 }
 
+function normalizeClassKey(cls) {
+  if (cls === null || cls === undefined) return "";
+  let s = String(cls).trim().replace(/班$/g, "").trim();
+  s = s.replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+  return s.trim();
+}
+
 function normalizeGrade(grade, className) {
-  if (grade && String(grade).includes("年級")) return String(grade);
-  const gradeMap = { "1": "一年級", "2": "二年級", "3": "三年級", "4": "四年級", "5": "五年級", "6": "六年級" };
-  if (grade && gradeMap[String(grade).trim()]) return gradeMap[String(grade).trim()];
-  if (className) {
-    const firstChar = String(className).trim().charAt(0);
-    if (gradeMap[firstChar]) return gradeMap[firstChar];
-    if (firstChar === "一") return "一年級";
-    if (firstChar === "二") return "二年級";
-    if (firstChar === "三") return "三年級";
-    if (firstChar === "四") return "四年級";
-    if (firstChar === "五") return "五年級";
-    if (firstChar === "六") return "六年級";
+  const cKey = normalizeClassKey(className);
+  const firstDigit = cKey.replace(/[^0-9]/g, "").charAt(0);
+  const digitToGrade = { "1": "一年級", "2": "二年級", "3": "三年級", "4": "四年級", "5": "五年級", "6": "六年級" };
+  
+  // 1. 若班級明確為 1~6 開頭數字 (如 401, 101, 401班)，班級開頭數字為絕對首要判準！
+  if (digitToGrade[firstDigit]) {
+    return digitToGrade[firstDigit];
   }
+  
+  // 2. 國字開頭
+  const firstChar = cKey.charAt(0);
+  if (firstChar === "一") return "一年級";
+  if (firstChar === "二") return "二年級";
+  if (firstChar === "三") return "三年級";
+  if (firstChar === "四") return "四年級";
+  if (firstChar === "五") return "五年級";
+  if (firstChar === "六") return "六年級";
+
+  // 3. 次要從 grade 欄位提取
+  if (grade && String(grade).includes("年級")) return String(grade).trim();
+  if (grade && digitToGrade[String(grade).trim()]) return digitToGrade[String(grade).trim()];
   return grade || "";
 }
 
 function detectHomeroom(classRows) {
   if (!classRows || classRows.length === 0) return "未指定";
-  // 1. 優先找教國語/語文的老師 (國小級任導師幾乎必教國語文)
+  // 1. 優先尋找明確標記導師且非未指定者
   for (let i = 0; i < classRows.length; i++) {
-    const subj = String(classRows[i]["科目"] || classRows[i]["科目(Subject)"] || classRows[i]["科目名稱"] || "");
-    const tea = String(classRows[i]["上課老師"] || classRows[i]["授課教師"] || classRows[i]["授課教師(Teacher)"] || classRows[i]["任課教師"] || "");
-    if ((subj.includes("國語") || subj.includes("語文")) && tea && tea !== "—" && tea !== "-") {
+    const hr = String(classRows[i]["導師"] || "").trim();
+    if (hr && hr !== "未指定" && hr !== "—" && hr !== "-") {
+      return hr;
+    }
+  }
+  // 2. 尋找老師身份為導師
+  for (let i = 0; i < classRows.length; i++) {
+    const role = String(classRows[i]["老師身份"] || classRows[i]["身份"] || "").trim();
+    const tea = String(classRows[i]["上課老師"] || classRows[i]["授課教師"] || classRows[i]["授課教師(Teacher)"] || "").trim();
+    if (role.includes("導師") && tea && tea !== "—" && tea !== "-") {
       return tea;
     }
   }
-  // 2. 尋找標記為導師的
+  // 3. 尋找教國語/語文/導師時間/晨光的老師 (國小級任導師必教國語文)
   for (let i = 0; i < classRows.length; i++) {
-    if (classRows[i]["老師身份"] === "導師" && classRows[i]["上課老師"]) {
-      return classRows[i]["上課老師"];
+    const subj = String(classRows[i]["科目"] || classRows[i]["科目(Subject)"] || classRows[i]["科目名稱"] || "").trim();
+    const tea = String(classRows[i]["上課老師"] || classRows[i]["授課教師"] || classRows[i]["授課教師(Teacher)"] || "").trim();
+    if ((subj.includes("國語") || subj.includes("語文") || subj.includes("導師") || subj.includes("晨光")) && tea && tea !== "—" && tea !== "-") {
+      return tea;
     }
   }
-  // 3. 尋找授課節數最多的老師
+  // 4. 統計該班上課節數最多的老師 (國小導師節數必為全班最高)
   const counts = {};
   classRows.forEach(r => {
-    const tea = String(r["上課老師"] || r["授課教師"] || r["授課教師(Teacher)"] || r["任課教師"] || "");
+    const tea = String(r["上課老師"] || r["授課教師"] || r["授課教師(Teacher)"] || "").trim();
     if (tea && tea !== "—" && tea !== "-") counts[tea] = (counts[tea] || 0) + 1;
   });
   let maxT = "未指定", maxC = 0;
@@ -506,33 +530,34 @@ function normalizeDatabase() {
   const dayNameMap = { "1": "星期一", "2": "星期二", "3": "星期三", "4": "星期四", "5": "星期五" };
   const dayIdxMap = { "星期一": 1, "週一": 1, "一": 1, "1": 1, "星期二": 2, "週二": 2, "二": 2, "2": 2, "星期三": 3, "週三": 3, "三": 3, "3": 3, "星期四": 4, "週四": 4, "四": 4, "4": 4, "星期五": 5, "週五": 5, "五": 5, "5": 5 };
 
-  // 先按班級統計導師
+  // 先按班級鍵統計導師
   const classRowsMap = {};
   DB.classes.forEach(r => {
-    const cls = String(r["班級/教室"] || r["班級"] || r["班級(ClassName)"] || r["ClassName"] || "").trim();
-    if (cls) {
-      if (!classRowsMap[cls]) classRowsMap[cls] = [];
-      classRowsMap[cls].push(r);
+    const rawCls = r["班級/教室"] || r["班級"] || r["班級(ClassName)"] || r["ClassName"] || "";
+    const clsKey = normalizeClassKey(rawCls);
+    if (clsKey) {
+      if (!classRowsMap[clsKey]) classRowsMap[clsKey] = [];
+      classRowsMap[clsKey].push(r);
     }
   });
 
   const classHomeroomMap = {};
-  for (let cls in classRowsMap) {
-    const firstHomeroom = classRowsMap[cls].find(r => r["導師"] && r["導師"] !== "未指定");
-    classHomeroomMap[cls] = firstHomeroom ? firstHomeroom["導師"] : detectHomeroom(classRowsMap[cls]);
+  for (let clsKey in classRowsMap) {
+    classHomeroomMap[clsKey] = detectHomeroom(classRowsMap[clsKey]);
   }
 
   // 正規化每一列
   DB.classes.forEach(r => {
-    const cls = String(r["班級/教室"] || r["班級"] || r["班級(ClassName)"] || r["ClassName"] || "").trim();
-    r["班級"] = cls;
-    r["班級/教室"] = cls;
+    const rawCls = r["班級/教室"] || r["班級"] || r["班級(ClassName)"] || r["ClassName"] || "";
+    const clsKey = normalizeClassKey(rawCls);
+    r["班級"] = clsKey || rawCls;
+    r["班級/教室"] = clsKey || rawCls;
 
     // 年級
-    r["年級"] = normalizeGrade(r["年級"], cls);
+    r["年級"] = normalizeGrade(r["年級"], clsKey);
 
     // 導師
-    r["導師"] = classHomeroomMap[cls] || "未指定";
+    r["導師"] = classHomeroomMap[clsKey] || detectHomeroom([r]) || "未指定";
 
     // 星期
     const rawDay = String(r["星期"] || r["星期(DayOfWeek)"] || r["DayOfWeek"] || r["週"] || "").trim();
@@ -657,13 +682,38 @@ function getSubjectTheme(subj) {
 
 function populateClassSelect() {
   const select = document.getElementById("select-class");
+  if (!select) return;
   select.innerHTML = "";
-  const classList = [...new Set(DB.classes.map(c => String(c["班級/教室"] || c["班級"])))].filter(Boolean).sort();
-  classList.forEach(c => {
+  const rawClasses = DB.classes.map(c => String(c["班級/教室"] || c["班級"] || c["班級(ClassName)"] || "")).filter(Boolean);
+  const uniqueClassKeys = [];
+  const seen = new Set();
+  rawClasses.forEach(c => {
+    const k = normalizeClassKey(c);
+    if (k && !seen.has(k)) {
+      seen.add(k);
+      uniqueClassKeys.push(k);
+    }
+  });
+  uniqueClassKeys.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+  uniqueClassKeys.forEach(c => {
     const opt = document.createElement("option");
     opt.value = c;
     opt.textContent = `${c} 班`;
     select.appendChild(opt);
+  });
+}
+
+function syncGradeChipsToClass(selectedClass) {
+  const cNum = String(selectedClass || "").replace(/[^0-9]/g, "");
+  const prefix = cNum.charAt(0);
+  const chips = document.querySelectorAll("#grade-chips-container .chip-btn");
+  chips.forEach(btn => {
+    if (btn.getAttribute("data-prefix") === prefix) {
+      btn.classList.add("active");
+    } else {
+      btn.classList.remove("active");
+    }
   });
 }
 
@@ -682,14 +732,20 @@ function setupGradeChips() {
   grades.forEach((g, idx) => {
     const btn = document.createElement("button");
     btn.className = `chip-btn ${idx === 0 ? "active" : ""}`;
+    btn.setAttribute("data-prefix", g.prefix);
     btn.textContent = g.label;
     btn.onclick = () => {
-      document.querySelectorAll(".chip-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll("#grade-chips-container .chip-btn").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
-      const firstClass = [...new Set(DB.classes.map(c => String(c["班級/教室"] || c["班級"])))]
-        .filter(c => c.startsWith(g.prefix))[0];
-      if (firstClass) {
-        document.getElementById("select-class").value = firstClass;
+      
+      const select = document.getElementById("select-class");
+      if (!select) return;
+      const matchedOption = Array.from(select.options).find(opt => {
+        const cKey = normalizeClassKey(opt.value);
+        return cKey.startsWith(g.prefix);
+      });
+      if (matchedOption) {
+        select.value = matchedOption.value;
         renderClassTimetable();
       }
     };
@@ -698,10 +754,20 @@ function setupGradeChips() {
 }
 
 function renderClassTimetable() {
-  const selectedClass = document.getElementById("select-class").value;
-  const classRows = DB.classes.filter(c => String(c["班級/教室"] || c["班級"]) === selectedClass);
+  const select = document.getElementById("select-class");
+  const selectedClass = select ? select.value : "";
+  const targetKey = normalizeClassKey(selectedClass);
+
+  // 自動同步年級按鈕 (Grade Chips) 高亮狀態
+  syncGradeChipsToClass(selectedClass);
+
+  // 寬容篩選班級資料 (統一依 normalizeClassKey 比對)
+  const classRows = DB.classes.filter(c => {
+    const raw = c["班級/教室"] || c["班級"] || c["班級(ClassName)"] || c["ClassName"] || "";
+    return normalizeClassKey(raw) === targetKey;
+  });
   
-  const homeroom = (classRows.length > 0 && classRows[0]["導師"] && classRows[0]["導師"] !== "未指定") ? classRows[0]["導師"] : detectHomeroom(classRows);
+  const homeroom = detectHomeroom(classRows);
   const grade = normalizeGrade(classRows.length > 0 ? classRows[0]["年級"] : "", selectedClass);
 
   document.getElementById("class-table-title").innerHTML = `🏫 ${selectedClass} 班級週課表 <span style="font-size:0.85rem;font-weight:600;color:var(--text-muted);">${grade ? '(' + grade + ')' : ''}</span>`;

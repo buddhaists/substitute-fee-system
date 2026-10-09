@@ -776,31 +776,51 @@ function getScheduleData() {
     }
     
     // 多候選分頁智慧偵測
+    var allSheets = ss.getSheets();
     var classSheet = ss.getSheetByName("班級課表") 
       || ss.getSheetByName("班級課表(含未排課)") 
       || ss.getSheetByName("班級課表(僅有課節次)") 
       || ss.getSheetByName(TIMETABLE_SHEET);
       
-    if (!classSheet) {
-      var allSheets = ss.getSheets();
+    if (!classSheet || classSheet.getLastRow() < 2) {
+      classSheet = null;
       for (var s = 0; s < allSheets.length; s++) {
         var sName = allSheets[s].getName();
-        if ((sName.indexOf("班級") !== -1 || sName.indexOf("課表") !== -1) 
-            && sName.indexOf("科任") === -1 
-            && sName.indexOf("專科") === -1 
-            && sName.indexOf("總表") === -1 
-            && sName.indexOf("明細") === -1 
-            && sName.indexOf("設定") === -1
-            && sName.indexOf("印領") === -1) {
+        if (sName.indexOf("總表") !== -1 || sName.indexOf("明細") !== -1 || sName.indexOf("設定") !== -1 || sName.indexOf("印領") !== -1) continue;
+        if (allSheets[s].getLastRow() < 2) continue;
+        var headerRow = allSheets[s].getRange(1, 1, 1, Math.min(allSheets[s].getLastColumn(), 15)).getValues()[0];
+        var headerStr = headerRow.join(",");
+        if ((headerStr.indexOf("班級") !== -1 || headerStr.indexOf("ClassName") !== -1) 
+            && (headerStr.indexOf("星期") !== -1 || headerStr.indexOf("週") !== -1 || headerStr.indexOf("DayOfWeek") !== -1)) {
           classSheet = allSheets[s];
           break;
         }
       }
-      if (!classSheet) classSheet = ss.getSheets()[0];
     }
 
-    var teacherSheet = ss.getSheetByName("科任課表") || (ss.getSheets().length > 1 ? ss.getSheets()[1] : null);
-    var roomSheet = ss.getSheetByName("專科教室課表(19間)") || ss.getSheetByName("專科教室課表") || (ss.getSheets().length > 2 ? ss.getSheets()[2] : null);
+    var teacherSheet = ss.getSheetByName("科任課表");
+    if (!teacherSheet || teacherSheet.getLastRow() < 2) {
+      teacherSheet = null;
+      for (var s = 0; s < allSheets.length; s++) {
+        var sName = allSheets[s].getName();
+        if (sName.indexOf("科任") !== -1 && allSheets[s] !== classSheet && allSheets[s].getLastRow() >= 2) {
+          teacherSheet = allSheets[s];
+          break;
+        }
+      }
+    }
+
+    var roomSheet = ss.getSheetByName("專科教室課表(19間)") || ss.getSheetByName("專科教室課表");
+    if (!roomSheet || roomSheet.getLastRow() < 2) {
+      roomSheet = null;
+      for (var s = 0; s < allSheets.length; s++) {
+        var sName = allSheets[s].getName();
+        if (sName.indexOf("專科") !== -1 && allSheets[s] !== classSheet && allSheets[s].getLastRow() >= 2) {
+          roomSheet = allSheets[s];
+          break;
+        }
+      }
+    }
     
     var classes = readSheetToObjects(classSheet);
     var teachers = teacherSheet ? readSheetToObjects(teacherSheet) : [];
@@ -902,6 +922,14 @@ function readSheetToObjects(sheet) {
         obj['年級'] = obj['年級'] || val;
       } else if (head.indexOf('地點') !== -1) {
         obj['上課地點'] = obj['上課地點'] || val;
+      }
+    }
+    // 自動由班級代號智慧補齊年級 (若原試算表無年級欄位)
+    if (!obj['年級'] && obj['班級']) {
+      var cDigit = String(obj['班級']).replace(/[^0-9]/g, '').charAt(0);
+      var gMap = { '1': '一年級', '2': '二年級', '3': '三年級', '4': '四年級', '5': '五年級', '6': '六年級' };
+      if (gMap[cDigit]) {
+        obj['年級'] = gMap[cDigit];
       }
     }
     if (hasValue) {
