@@ -48,7 +48,7 @@ body {
   margin: 0 auto;
 }
 
-/* Top Global Navigation Bar */
+/* Top Global Navigation Bar - Tiffany Green Theme */
 .top-navbar {
   display: flex;
   align-items: center;
@@ -66,11 +66,20 @@ body {
 .nav-brand {
   font-weight: 800;
   font-size: 1.15rem;
-  color: var(--primary-color);
+  color: #0d9488;
   display: flex;
   align-items: center;
   gap: 0.6rem;
   text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.nav-brand i {
+  color: #0abab5;
+}
+
+.nav-brand:hover {
+  color: #0f766e;
 }
 
 .nav-menu {
@@ -96,16 +105,16 @@ body {
 }
 
 .nav-item:hover {
-  color: var(--primary-color);
-  background: #eff6ff;
-  border-color: #bfdbfe;
+  color: #0f766e;
+  background: #f0fdfa;
+  border-color: #99f6e4;
 }
 
 .nav-item.active {
   color: white;
-  background: var(--primary-color);
-  border-color: var(--primary-color);
-  box-shadow: 0 2px 5px rgba(30, 58, 138, 0.25);
+  background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+  border-color: #0d9488;
+  box-shadow: 0 2px 6px rgba(10, 186, 181, 0.35);
 }
 
 /* Header */
