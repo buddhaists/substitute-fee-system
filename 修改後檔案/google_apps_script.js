@@ -217,6 +217,14 @@ function doGet(e) {
       }
     }
 
+    if (page === 'timetable') {
+      try {
+        template.initialScheduleData = JSON.stringify(getScheduleData());
+      } catch (e) {
+        template.initialScheduleData = "{}";
+      }
+    }
+
     return template.evaluate()
       .setTitle(getTitleForPage(page, currentSchool))
       .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
@@ -766,7 +774,7 @@ function getOrCreateSheet(ss, name, headers) {
 
 /**
  * 取得全校課表數據 (提供給全校課表查詢頁面初始化載入)
- * 支援由試算表「班級課表」、「科任課表」、「專科教室課表」動態抓取
+ * 核心直接連動 buildTimetable(ss)，與行政端及教師端 100% 同步共用同一套課表資料庫
  */
 function getScheduleData() {
   try {
@@ -775,86 +783,90 @@ function getScheduleData() {
       throw new Error("無法取得試算表，請確認已綁定試算表。");
     }
     
-    // 多候選分頁智慧偵測
-    var allSheets = ss.getSheets();
-    var classSheet = ss.getSheetByName("班級課表") 
-      || ss.getSheetByName("班級課表(含未排課)") 
-      || ss.getSheetByName("班級課表(僅有課節次)") 
-      || ss.getSheetByName(TIMETABLE_SHEET);
-      
-    if (!classSheet || classSheet.getLastRow() < 2) {
-      classSheet = null;
-      for (var s = 0; s < allSheets.length; s++) {
-        var sName = allSheets[s].getName();
-        if (sName.indexOf("總表") !== -1 || sName.indexOf("明細") !== -1 || sName.indexOf("設定") !== -1 || sName.indexOf("印領") !== -1) continue;
-        if (allSheets[s].getLastRow() < 2) continue;
-        var headerRow = allSheets[s].getRange(1, 1, 1, Math.min(allSheets[s].getLastColumn(), 15)).getValues()[0];
-        var headerStr = headerRow.join(",");
-        if ((headerStr.indexOf("班級") !== -1 || headerStr.indexOf("ClassName") !== -1) 
-            && (headerStr.indexOf("星期") !== -1 || headerStr.indexOf("週") !== -1 || headerStr.indexOf("DayOfWeek") !== -1)) {
-          classSheet = allSheets[s];
-          break;
+    // 呼叫與 admin.html 完全一致之標準 buildTimetable 核心
+    var timetable = buildTimetable(ss);
+    var db = timetable.db || {};
+    var classList = timetable.classes || [];
+    var teacherList = timetable.teachers || [];
+    var classTeachers = timetable.classTeachers || {};
+
+    var dayNames = ["星期一", "星期二", "星期三", "星期四", "星期五"];
+    var gMap = { '1': '一年級', '2': '二年級', '3': '三年級', '4': '四年級', '5': '五年級', '6': '六年級' };
+
+    var flatClasses = [];
+    classList.forEach(function(cls) {
+      var cDigit = String(cls).replace(/[^0-9]/g, '').charAt(0);
+      var grade = gMap[cDigit] || "";
+      var homeroom = classTeachers[cls] || "未指定";
+      var cDays = db[cls] || {};
+
+      for (var d = 1; d <= 5; d++) {
+        var dPeriods = cDays[d] || {};
+        for (var p = 1; p <= 7; p++) {
+          var it = dPeriods[p];
+          if (it && it.subject && it.subject !== '（無排課）' && it.subject !== '—' && it.subject !== '無課') {
+            flatClasses.push({
+              "班級": cls,
+              "班級/教室": cls,
+              "年級": grade,
+              "星期": dayNames[d - 1],
+              "星期序號": d,
+              "節次": "第" + p + "節",
+              "節次序號": p,
+              "科目": it.subject,
+              "上課老師": it.teacher,
+              "授課教師": it.teacher,
+              "老師身份": (it.teacher === homeroom ? "導師" : "科任"),
+              "導師": homeroom,
+              "上課地點": cls + " 教室"
+            });
+          }
         }
       }
-    }
+    });
 
-    var teacherSheet = ss.getSheetByName("科任課表");
-    if (!teacherSheet || teacherSheet.getLastRow() < 2) {
-      teacherSheet = null;
-      for (var s = 0; s < allSheets.length; s++) {
-        var sName = allSheets[s].getName();
-        if (sName.indexOf("科任") !== -1 && allSheets[s] !== classSheet && allSheets[s].getLastRow() >= 2) {
-          teacherSheet = allSheets[s];
-          break;
-        }
-      }
-    }
-
-    var roomSheet = ss.getSheetByName("專科教室課表(19間)") || ss.getSheetByName("專科教室課表");
-    if (!roomSheet || roomSheet.getLastRow() < 2) {
-      roomSheet = null;
-      for (var s = 0; s < allSheets.length; s++) {
-        var sName = allSheets[s].getName();
-        if (sName.indexOf("專科") !== -1 && allSheets[s] !== classSheet && allSheets[s].getLastRow() >= 2) {
-          roomSheet = allSheets[s];
-          break;
-        }
-      }
-    }
-    
-    var classes = readSheetToObjects(classSheet);
-    var teachers = teacherSheet ? readSheetToObjects(teacherSheet) : [];
-    var rooms = roomSheet ? readSheetToObjects(roomSheet) : [];
-
-    // 若科任課表為空，自動由班級課表推導教師授課資料
-    if ((!teachers || teachers.length === 0) && classes && classes.length > 0) {
-      teachers = [];
-      classes.forEach(function(r) {
-        var tea = r["上課老師"] || r["授課教師"];
-        if (tea && tea !== "—" && tea !== "-") {
-          teachers.push({
-            "上課老師": tea,
-            "教師姓名": tea,
-            "授課班級/教室": r["班級"] || r["班級/教室"] || "",
-            "班級": r["班級"] || r["班級/教室"] || "",
-            "星期": r["星期"],
-            "星期序號": r["星期序號"],
-            "節次": r["節次"],
-            "節次序號": r["節次序號"],
-            "科目": r["科目"],
-            "上課地點": r["上課地點"] || "",
-            "職稱/專長": (r["導師"] === tea ? "級任導師" : "科任教師")
-          });
+    var flatTeachers = [];
+    teacherList.forEach(function(tea) {
+      classList.forEach(function(cls) {
+        var homeroom = classTeachers[cls] || "未指定";
+        var cDays = db[cls] || {};
+        for (var d = 1; d <= 5; d++) {
+          var dPeriods = cDays[d] || {};
+          for (var p = 1; p <= 7; p++) {
+            var it = dPeriods[p];
+            if (it && it.teacher === tea) {
+              flatTeachers.push({
+                "上課老師": tea,
+                "教師姓名": tea,
+                "班級": cls,
+                "授課班級/教室": cls,
+                "星期": dayNames[d - 1],
+                "星期序號": d,
+                "節次": "第" + p + "節",
+                "節次序號": p,
+                "科目": it.subject,
+                "上課地點": cls + " 教室",
+                "職稱/專長": (tea === homeroom ? "級任導師" : "科任教師")
+              });
+            }
+          }
         }
       });
-    }
-    
+    });
+
+    var roomSheet = ss.getSheetByName("專科教室課表(19間)") || ss.getSheetByName("專科教室課表");
+    var rooms = roomSheet ? readSheetToObjects(roomSheet) : [];
+
     return {
       success: true,
       data: {
-        classes: classes,
-        teachers: teachers,
-        rooms: rooms
+        classes: flatClasses,
+        teachers: flatTeachers,
+        rooms: rooms,
+        db: db,
+        classesList: classList,
+        teachersList: teacherList,
+        classTeachers: classTeachers
       }
     };
   } catch (err) {
@@ -1026,49 +1038,73 @@ function buildTimetable(ss) {
         if (teacher && teacher !== '—' && teacher !== '-') teachersMap[teacher] = true;
       }
 
-      var teachers = Object.keys(teachersMap).sort();
-      var classes = Object.keys(classesMap).sort();
-      var result = { db: db, teachers: teachers, classes: classes };
-
-      try {
-        CacheService.getScriptCache().put("TIMETABLE_DB", JSON.stringify(result), 300);
-      } catch (pErr) {}
-
-      return result;
+      }
     }
   }
 
-  // 2. 次要備援降級：直接讀取標準 5 欄 Class_Timetables
-  var sheet = ss.getSheetByName(TIMETABLE_SHEET);
-  if (!sheet) return { db: {}, teachers: [], classes: [] };
+  // 2. 次要備援降級：直接讀取標準 5 欄 Class_Timetables (若 db 仍為空)
+  if (Object.keys(db).length === 0) {
+    var sheet = ss.getSheetByName(TIMETABLE_SHEET);
+    if (sheet && sheet.getLastRow() > 1) {
+      var lastRow = sheet.getLastRow();
+      var values = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
 
-  var lastRow = sheet.getLastRow();
-  if (lastRow <= 1) return { db: {}, teachers: [], classes: [] };
+      for (var i = 0; i < values.length; i++) {
+        var rawCls = values[i][0];
+        if (rawCls === null || rawCls === undefined) continue;
+        var cls = String(rawCls).trim();
+        var day = parseInt(values[i][1], 10);
+        var period = parseInt(values[i][2], 10);
+        var subject = String(values[i][3] || '').trim();
+        var teacher = String(values[i][4] || '').trim();
+        if (!cls || isNaN(day) || isNaN(period)) continue;
+        if (subject === '（無排課）' || subject === '—' || subject === '無' || subject === '無課') continue;
 
-  var values = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+        if (!db[cls]) db[cls] = {};
+        if (!db[cls][day]) db[cls][day] = {};
+        db[cls][day][period] = { subject: subject, teacher: teacher };
 
-  for (var i = 0; i < values.length; i++) {
-    var rawCls = values[i][0];
-    if (rawCls === null || rawCls === undefined) continue;
-    var cls = String(rawCls).trim();
-    var day = parseInt(values[i][1], 10);
-    var period = parseInt(values[i][2], 10);
-    var subject = String(values[i][3] || '').trim();
-    var teacher = String(values[i][4] || '').trim();
-    if (!cls || isNaN(day) || isNaN(period)) continue;
-    if (subject === '（無排課）' || subject === '—' || subject === '無') continue;
-
-    if (!db[cls]) db[cls] = {};
-    if (!db[cls][day]) db[cls][day] = {};
-    db[cls][day][period] = { subject: subject, teacher: teacher };
-
-    if (cls) classesMap[cls] = true;
-    if (teacher && teacher !== '—' && teacher !== '-') teachersMap[teacher] = true;
+        if (cls) classesMap[cls] = true;
+        if (teacher && teacher !== '—' && teacher !== '-') teachersMap[teacher] = true;
+      }
+    }
   }
 
   var teachers = Object.keys(teachersMap).sort();
   var classes = Object.keys(classesMap).sort();
-  var result = { db: db, teachers: teachers, classes: classes };
+
+  // 智慧推導各班級導師 (以國語文任課教師為首選，授課節數最多者為備選)
+  var classTeachers = {};
+  for (var c = 0; c < classes.length; c++) {
+    var cName = classes[c];
+    var cDays = db[cName] || {};
+    var counts = {};
+    var mandarinTeacher = "";
+    for (var d in cDays) {
+      var dPeriods = cDays[d] || {};
+      for (var p in dPeriods) {
+        var it = dPeriods[p];
+        if (it && it.teacher && it.teacher !== '—' && it.teacher !== '-' && it.teacher !== '未指定') {
+          counts[it.teacher] = (counts[it.teacher] || 0) + 1;
+          var subj = it.subject || '';
+          if ((subj.indexOf('國語') !== -1 || subj.indexOf('語文') !== -1 || subj.indexOf('導師') !== -1) && !mandarinTeacher) {
+            mandarinTeacher = it.teacher;
+          }
+        }
+      }
+    }
+    if (mandarinTeacher) {
+      classTeachers[cName] = mandarinTeacher;
+    } else {
+      var maxT = "未指定", maxC = 0;
+      for (var t in counts) {
+        if (counts[t] > maxC) { maxC = counts[t]; maxT = t; }
+      }
+      classTeachers[cName] = maxT;
+    }
+  }
+
+  var result = { db: db, teachers: teachers, classes: classes, classTeachers: classTeachers };
 
   try {
     CacheService.getScriptCache().put("TIMETABLE_DB", JSON.stringify(result), 300);
