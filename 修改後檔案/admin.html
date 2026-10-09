@@ -524,6 +524,9 @@ header p {
         <a href="<?= appUrl ?>" class="nav-item" target="_top" onclick="navTo(''); return false;">
           <i class="fa-solid fa-house"></i> 首頁入口
         </a>
+        <a href="<?= appUrl ?>?page=timetable" class="nav-item" target="_top" onclick="navTo('timetable'); return false;">
+          <i class="fa-solid fa-calendar-days"></i> 全校課表查詢
+        </a>
         <a href="<?= appUrl ?>?page=teacher" class="nav-item" target="_top" onclick="navTo('teacher'); return false;">
           <i class="fa-solid fa-file-signature"></i> 教師交接端
         </a>
@@ -2380,44 +2383,113 @@ header p {
 
         const lines = text.split(/\r?\n/);
         parsedImportRows = [];
+        const teacherSlotMap = {}; // key: teacher_day_period -> [{cls, subject}]
+        const dayMap = {
+          '星期一': 1, '週一': 1, '一': 1, '1': 1,
+          '星期二': 2, '週二': 2, '二': 2, '2': 2,
+          '星期三': 3, '週三': 3, '三': 3, '3': 3,
+          '星期四': 4, '週四': 4, '四': 4, '4': 4,
+          '星期五': 5, '週五': 5, '五': 5, '5': 5
+        };
+
+        let colCls = 0, colDay = 1, colPeriod = 2, colSubj = 3, colTeacher = 4;
 
         lines.forEach(line => {
           const trimmed = line.trim();
           if (!trimmed) return;
           // 支援 Tab 或 逗號 分隔
           const parts = trimmed.includes('\t') ? trimmed.split('\t') : trimmed.split(',');
-          if (parts.length >= 5) {
-            const cls = parts[0].trim().replace(/^["']|["']$/g, '');
-            const day = parseInt(parts[1].trim(), 10);
-            const period = parseInt(parts[2].trim(), 10);
-            const subject = parts[3].trim().replace(/^["']|["']$/g, '');
-            const teacher = parts[4].trim().replace(/^["']|["']$/g, '');
+          const cleanParts = parts.map(p => p.trim().replace(/^["']|["']$/g, ''));
 
-            // 略過標題列
-            if (cls === '班級' || isNaN(day) || isNaN(period)) return;
-
-            parsedImportRows.push([cls, day, period, subject, teacher]);
+          // 偵測並動態映射標題列欄位
+          if (cleanParts.some(p => p.includes('班級') || p.includes('節次') || p.includes('科目'))) {
+            cleanParts.forEach((h, idx) => {
+              if ((h.includes('班級') || h.includes('教室')) && !h.includes('上課地點')) colCls = idx;
+              else if (h.includes('星期') || h.includes('週')) colDay = idx;
+              else if (h.includes('節次') || h.includes('節')) colPeriod = idx;
+              else if (h.includes('科目') || h.includes('課程')) colSubj = idx;
+              else if ((h.includes('老師') || h.includes('教師')) && !h.includes('身份') && !h.includes('代課')) colTeacher = idx;
+            });
+            return;
           }
+
+          let cls = cleanParts[colCls];
+          let rawDay = cleanParts[colDay];
+          let rawPeriod = cleanParts[colPeriod];
+          let subject = cleanParts[colSubj];
+          let teacher = cleanParts[colTeacher];
+
+          // 自動備援：若為標準 10 欄班級課表 (0:班級, 2:星期, 3:節次, 5:科目, 6:老師)
+          if (cleanParts.length >= 8 && !dayMap[rawDay] && isNaN(parseInt(rawDay, 10))) {
+            cls = cleanParts[0];
+            rawDay = cleanParts[2];
+            rawPeriod = cleanParts[3];
+            subject = cleanParts[5];
+            teacher = cleanParts[6];
+          }
+
+          if (!cls || !rawDay || !rawPeriod) return;
+
+          const day = dayMap[rawDay] || parseInt(String(rawDay).replace(/[^0-9]/g, ''), 10);
+          const pMatch = String(rawPeriod).match(/\d+/);
+          const period = pMatch ? parseInt(pMatch[0], 10) : parseInt(rawPeriod, 10);
+
+          if (isNaN(day) || isNaN(period) || day < 1 || day > 7 || period < 1) return;
+
+          // 略過未排課與無效標記
+          if (!subject || subject === '（無排課）' || subject === '無排課' || subject === '—' || subject === '無課' || subject === '無') return;
+          if (!teacher || teacher === '—' || teacher === '-' || teacher === '無') return;
+
+          parsedImportRows.push([cls, day, period, subject, teacher]);
+
+          const slotKey = `${teacher}_${day}_${period}`;
+          if (!teacherSlotMap[slotKey]) teacherSlotMap[slotKey] = [];
+          teacherSlotMap[slotKey].push({ cls, subject, day, period, teacher });
         });
 
         if (parsedImportRows.length === 0) {
-          alert('未能成功解析資料，請確認是否包含「班級、星期(1-5)、節次(1-7)、科目、授課教師」5個欄位！');
+          alert('未能成功解析資料，請確認是否包含「班級、星期(1-5)、節次(1-7)、科目、授課教師」欄位！');
           btnConfirmImport.disabled = true;
           importPreviewBox.style.display = 'none';
           return;
         }
 
-        importPreviewSummary.textContent = `✅ 解析成功：共 ${parsedImportRows.length} 筆有效課表資料即將匯入`;
+        // 衝堂即時診斷檢測
+        const detectedCollisions = [];
+        Object.keys(teacherSlotMap).forEach(k => {
+          if (teacherSlotMap[k].length > 1) {
+            detectedCollisions.push(teacherSlotMap[k]);
+          }
+        });
+
+        if (detectedCollisions.length > 0) {
+          const sample = detectedCollisions.slice(0, 3).map(c => 
+            `• ${c[0].teacher} 老師於 星期${c[0].day} 第${c[0].period}節：同時排入 ${c.map(x => '【' + x.cls + '】' + x.subject).join('、')}`
+          ).join('\n');
+          importPreviewSummary.innerHTML = `
+            <div style="background:#fef2f2; border:1px solid #f87171; color:#991b1b; padding:0.6rem 0.8rem; border-radius:6px; margin-bottom:0.5rem;">
+              <strong><i class="fa-solid fa-triangle-exclamation"></i> 警告：偵測到 ${detectedCollisions.length} 處教師排課衝突（同節排入超過一個班級）：</strong>
+              <pre style="margin:0.4rem 0 0 0; font-size:0.8rem; white-space:pre-wrap;">${sample}</pre>
+            </div>
+            <span>解析完成：共 ${parsedImportRows.length} 筆課表資料（請確認是否修正衝堂後再寫入）</span>
+          `;
+        } else {
+          importPreviewSummary.innerHTML = `<span style="color:#166534;"><i class="fa-solid fa-circle-check"></i> 解析成功且驗證通過：共 <strong>${parsedImportRows.length}</strong> 筆課表資料，每節課均為單一班級，完全無衝堂！</span>`;
+        }
+
         importPreviewTbody.innerHTML = '';
         parsedImportRows.slice(0, 100).forEach((r, idx) => {
+          const slotKey = `${r[4]}_${r[1]}_${r[2]}`;
+          const isCollided = teacherSlotMap[slotKey] && teacherSlotMap[slotKey].length > 1;
           const tr = document.createElement('tr');
+          if (isCollided) tr.style.background = '#fee2e2';
           tr.innerHTML = `
             <td>${idx + 1}</td>
             <td><strong>${r[0]}</strong></td>
             <td>星期 ${r[1]}</td>
             <td>第 ${r[2]} 節</td>
             <td>${r[3]}</td>
-            <td>${r[4]}</td>
+            <td>${r[4]}${isCollided ? ' <span style="color:#dc2626; font-size:0.75rem; font-weight:700;">(衝堂)</span>' : ''}</td>
           `;
           importPreviewTbody.appendChild(tr);
         });
@@ -2562,8 +2634,10 @@ header p {
                   matches.push(`【${cls}】${dayData[p].subject}`);
                 }
               });
-              if (matches.length > 0) {
-                cellHtml = `<div class="matrix-subject">${matches.join('<br>')}</div><div class="matrix-teacher">${teacherFilter}</div>`;
+              if (matches.length > 1) {
+                cellHtml = `<div class="matrix-subject" style="background:#fee2e2; border:1px solid #ef4444; border-radius:4px; padding:3px 5px; text-align:left;"><span style="color:#b91c1c; font-weight:700; font-size:0.75rem;"><i class="fa-solid fa-triangle-exclamation"></i> 衝堂(${matches.length}班)</span><br>${matches.join('<br>')}</div><div class="matrix-teacher">${teacherFilter}</div>`;
+              } else if (matches.length === 1) {
+                cellHtml = `<div class="matrix-subject">${matches[0]}</div><div class="matrix-teacher">${teacherFilter}</div>`;
               }
             }
 

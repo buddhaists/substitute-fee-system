@@ -590,9 +590,11 @@ input[type="checkbox"] {
   <? var appUrl = (typeof scriptUrl !== 'undefined' && scriptUrl) ? scriptUrl : (typeof getScriptUrl === 'function' ? getScriptUrl() : ''); ?>
   <? var serverData = (typeof serverTimetable !== 'undefined' && serverTimetable) ? JSON.stringify(serverTimetable) : '{}'; ?>
   <? var settingsData = (typeof systemSettings !== 'undefined' && systemSettings) ? JSON.stringify(systemSettings) : '{}'; ?>
+  <? var urlParamsData = (typeof urlParams !== 'undefined' && urlParams) ? JSON.stringify(urlParams) : '{}'; ?>
   <script>
     var SERVER_TIMETABLE = <?!= serverData ?>;
     var SERVER_SYSTEM_SETTINGS = <?!= settingsData ?>;
+    var SERVER_URL_PARAMS = <?!= urlParamsData ?>;
   </script>
   <div class="container">
     
@@ -604,6 +606,9 @@ input[type="checkbox"] {
       <div class="nav-menu">
         <a href="<?= appUrl ?>" class="nav-item" target="_top" onclick="navTo(''); return false;">
           <i class="fa-solid fa-house"></i> 首頁入口
+        </a>
+        <a href="<?= appUrl ?>?page=timetable" class="nav-item" target="_top" onclick="navTo('timetable'); return false;">
+          <i class="fa-solid fa-calendar-days"></i> 全校課表查詢
         </a>
         <a href="<?= appUrl ?>?page=teacher" class="nav-item active" target="_top" onclick="navTo('teacher'); return false;">
           <i class="fa-solid fa-file-signature"></i> 教師交接端
@@ -649,8 +654,10 @@ input[type="checkbox"] {
           </div>
 
           <div id="multi-day-banner" style="display: none; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 0.6rem 0.85rem; border-radius: 6px; font-size: 0.85rem; color: #166534; margin-bottom: 0.85rem;">
-            <i class="fa-solid fa-layer-group"></i> <strong>連續多日模式進行中：</strong>送出時，系統將自動為您所選日期區間內的「每一天」依據該星期的班級課表各自產生交接單並計算鐘點費。
+            <i class="fa-solid fa-layer-group"></i> <strong>連續多日模式進行中：</strong>送出時，系統將自動為您所選日期區間內的「每一天」依據該星期的課表各自產生交接單並計算鐘點費。
           </div>
+
+          <div id="teacher-schedule-banner" style="display: none; background: #eff6ff; border: 1px solid #bfdbfe; padding: 0.55rem 0.85rem; border-radius: 6px; font-size: 0.85rem; color: #1e40af; margin-bottom: 0.85rem;"></div>
           
           <table class="period-table">
             <thead>
@@ -1136,6 +1143,7 @@ input[type="checkbox"] {
       const displayRateBadge = document.getElementById('display-rate-badge');
       const selectAbsentTeacher = document.getElementById('select-absent-teacher');
       const inputAbsentTeacherCustom = document.getElementById('input-absent-teacher-custom');
+      let PRESELECTED_TEACHER = '';
       const inputSubTeacher = document.getElementById('input-sub-teacher');
       const inputClass = document.getElementById('input-class');
       const selectLeaveType = document.getElementById('select-leave-type');
@@ -1361,13 +1369,25 @@ input[type="checkbox"] {
         customOpt.textContent = '✏️ 手動輸入其他教師姓名...';
         selectAbsentTeacher.appendChild(customOpt);
 
-        // 恢復先前選取的教師
-        if (currentSelectedTeacher && allTeachers.includes(currentSelectedTeacher)) {
-          selectAbsentTeacher.value = currentSelectedTeacher;
+        // 恢復先前選取或預選的教師
+        const targetToSelect = PRESELECTED_TEACHER || currentSelectedTeacher;
+        if (targetToSelect) {
+          let found = false;
+          for (let opt of selectAbsentTeacher.options) {
+            if (opt.value && opt.value.trim() === targetToSelect.trim()) {
+              selectAbsentTeacher.value = opt.value;
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            const dynamicOpt = document.createElement('option');
+            dynamicOpt.value = targetToSelect.trim();
+            dynamicOpt.textContent = `⭐ ${targetToSelect.trim()}`;
+            selectAbsentTeacher.insertBefore(dynamicOpt, selectAbsentTeacher.firstChild.nextSibling);
+            selectAbsentTeacher.value = targetToSelect.trim();
+          }
           inputAbsentTeacherCustom.style.display = 'none';
-        } else if (currentSelectedTeacher && selectAbsentTeacher.value === '__custom__') {
-          inputAbsentTeacherCustom.value = currentSelectedTeacher;
-          inputAbsentTeacherCustom.style.display = 'block';
         } else {
           inputAbsentTeacherCustom.style.display = 'none';
         }
@@ -1434,59 +1454,178 @@ input[type="checkbox"] {
         return { periodsCount, rate: CURRENT_RATE, totalFee, mentorDaily };
       }
 
-      // Auto-fill Timetable (連動日期、班級、請假教師，自動抓取資料庫當天課表並智慧勾選)
+      // 取得特定教師在特定星期幾在全校所有班級的排課清單 (支援科任教師跨班排課)
+      function getTeacherDaySchedule(teacherName, dayOfWeek) {
+        if (!teacherName || !dayOfWeek) return {};
+        const cleanTeacher = String(teacherName).trim();
+        const result = {};
+        for (const cls in TIMETABLE_DATABASE) {
+          const classData = TIMETABLE_DATABASE[cls];
+          if (classData && classData[dayOfWeek]) {
+            const dayData = classData[dayOfWeek];
+            for (const p in dayData) {
+              const slot = dayData[p];
+              if (slot && slot.teacher && String(slot.teacher).trim() === cleanTeacher) {
+                result[p] = {
+                  className: cls,
+                  subject: slot.subject || '',
+                  teacher: cleanTeacher
+                };
+              }
+            }
+          }
+        }
+        return result;
+      }
+
+      // Auto-fill Timetable (智慧感知：支援「級任導師」與「專任科任老師」跨班課表自動帶入與打勾)
       function autoFillTimetable() {
         const dateVal = inputStartDate.value || inputDate.value;
-        const classVal = inputClass.value;
         const teacherVal = getAbsentTeacherValue();
-        
-        if (!dateVal || !classVal) return;
-        
-        const classTimetable = TIMETABLE_DATABASE[classVal];
-        
+        const classVal = inputClass.value;
+        const scheduleBanner = document.getElementById('teacher-schedule-banner');
+
+        if (!dateVal) return;
+
         // 修正本地日期解析以防時區位移
         const dateObj = new Date(dateVal.replace(/-/g, '/'));
         const dayOfWeek = dateObj.getDay();
-        
-        if (dayOfWeek === 0 || dayOfWeek === 6 || !classTimetable) {
-          // 週末或無此班級資料
+
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+          // 週末無課
           document.querySelectorAll('#schedule-tbody tr').forEach(row => {
             row.querySelector('input[type="checkbox"]').checked = false;
             if (row.getAttribute('data-paid') === 'true') {
               row.cells[3].querySelector('input').value = '';
+              row.removeAttribute('data-class');
             }
           });
+          if (scheduleBanner) scheduleBanner.style.display = 'none';
           calculateCurrentFee();
           return;
         }
-        
+
+        const days = ['日', '一', '二', '三', '四', '五', '六'];
+        const dayName = '星期' + days[dayOfWeek];
+
+        // =============================================================
+        // 分流 A: 請假教師模式（以教師為核心：完美支援專任科任老師跨班排課）
+        // =============================================================
+        if (teacherVal) {
+          const teacherSchedule = getTeacherDaySchedule(teacherVal, dayOfWeek);
+          const periodsWithClasses = Object.keys(teacherSchedule);
+
+          if (periodsWithClasses.length > 0) {
+            const classesOnDay = Array.from(new Set(Object.values(teacherSchedule).map(x => x.className))).sort();
+            const isMultiClass = classesOnDay.length > 1;
+
+            // 若為跨班科任教師，更新班級下拉選單呈現
+            if (isMultiClass) {
+              const multiOptVal = `科任 (${classesOnDay.join(', ')})`;
+              let hasOpt = false;
+              for (let opt of inputClass.options) {
+                if (opt.value === multiOptVal || opt.value.startsWith('科任')) {
+                  opt.value = multiOptVal;
+                  opt.textContent = multiOptVal;
+                  hasOpt = true;
+                  break;
+                }
+              }
+              if (!hasOpt) {
+                const opt = document.createElement('option');
+                opt.value = multiOptVal;
+                opt.textContent = multiOptVal;
+                inputClass.insertBefore(opt, inputClass.firstChild);
+              }
+              inputClass.value = multiOptVal;
+            } else if (classesOnDay.length === 1 && !classVal.includes(classesOnDay[0])) {
+              inputClass.value = classesOnDay[0];
+            }
+
+            // 填寫 1~7 節課表
+            document.querySelectorAll('#schedule-tbody tr').forEach(row => {
+              const period = row.getAttribute('data-period');
+              const isPaid = row.getAttribute('data-paid') === 'true';
+              const checkbox = row.querySelector('input[type="checkbox"]');
+              const subjectInput = row.cells[3].querySelector('input');
+
+              if (isPaid) {
+                const slot = teacherSchedule[period];
+                if (slot) {
+                  // 有課：自動標註班級並打勾！
+                  subjectInput.value = isMultiClass ? `[${slot.className}班] ${slot.subject}` : slot.subject;
+                  row.setAttribute('data-class', slot.className);
+                  checkbox.checked = true;
+                } else {
+                  // 無課：清空並不勾選
+                  subjectInput.value = '';
+                  row.removeAttribute('data-class');
+                  checkbox.checked = false;
+                }
+              }
+            });
+
+            // 顯示友善提示橫條
+            if (scheduleBanner) {
+              scheduleBanner.style.display = 'block';
+              scheduleBanner.innerHTML = `<i class="fa-solid fa-circle-check" style="color:#10b981;"></i> ` +
+                `已依<strong>【${teacherVal} 老師】</strong>${dayName}個人課表自動載入 <strong>${periodsWithClasses.length} 節課</strong> ` +
+                `(授課班級：${classesOnDay.map(c => `<span style="background:#dbeafe; color:#1e40af; font-weight:bold; padding:1px 6px; border-radius:4px; margin:0 2px;">${c}</span>`).join(' ')})`;
+            }
+
+            calculateCurrentFee();
+            return;
+          } else {
+            // 該教師當天整天無排課
+            document.querySelectorAll('#schedule-tbody tr').forEach(row => {
+              const isPaid = row.getAttribute('data-paid') === 'true';
+              if (isPaid) {
+                row.querySelector('input[type="checkbox"]').checked = false;
+                row.cells[3].querySelector('input').value = '';
+                row.removeAttribute('data-class');
+              }
+            });
+            if (scheduleBanner) {
+              scheduleBanner.style.display = 'block';
+              scheduleBanner.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color:#f59e0b;"></i> ` +
+                `提示：<strong>【${teacherVal} 老師】</strong>在 ${dayName} 目前無任何排課紀錄。您可手動輸入科目並勾選節次。`;
+            }
+            calculateCurrentFee();
+            return;
+          }
+        }
+
+        // =============================================================
+        // 分流 B: 僅選取班級模式（退回傳統班級課表）
+        // =============================================================
+        if (scheduleBanner) scheduleBanner.style.display = 'none';
+        if (!classVal) return;
+
+        const classTimetable = TIMETABLE_DATABASE[classVal];
+        if (!classTimetable) return;
+
         const dayTimetable = classTimetable[dayOfWeek];
-        
+
         document.querySelectorAll('#schedule-tbody tr').forEach(row => {
           const period = row.getAttribute('data-period');
           const isPaid = row.getAttribute('data-paid') === 'true';
           const checkbox = row.querySelector('input[type="checkbox"]');
           const subjectInput = row.cells[3].querySelector('input');
-          
+
           if (isPaid) {
             const periodData = dayTimetable ? dayTimetable[period] : null;
             if (periodData) {
               subjectInput.value = periodData.subject || '';
-              // 智慧連動：如果該節次的授課教師是選取的請假教師，自動打勾！
-              if (teacherVal && periodData.teacher && periodData.teacher.trim() === teacherVal.trim()) {
-                checkbox.checked = true;
-              } else {
-                checkbox.checked = false;
-              }
+              row.setAttribute('data-class', classVal);
+              checkbox.checked = false;
             } else {
               subjectInput.value = '';
+              row.removeAttribute('data-class');
               checkbox.checked = false;
             }
-          } else {
-            // 非計費作息項目保持原樣
           }
         });
-        
+
         calculateCurrentFee();
       }
 
@@ -1503,16 +1642,21 @@ input[type="checkbox"] {
         return matched;
       }
 
-      // Event Listeners for calculations & autofill
+      // 事件監聽：日期變更時，立即重新動態載入該教師該日之課表
       inputDate.addEventListener('change', autoFillTimetable);
+      inputStartDate.addEventListener('change', autoFillTimetable);
+      inputEndDate.addEventListener('change', autoFillTimetable);
       
       // 正向連動：切換班級時，自動更新並選取該班任課教師
       inputClass.addEventListener('change', () => {
-        updateTeacherDropdown();
+        // 若非手動切回班級，才重新更新教師
+        if (!inputClass.value.startsWith('科任')) {
+          updateTeacherDropdown();
+        }
         autoFillTimetable();
       });
       
-      // 反向連動：切換教師時，自動連動切換至該教師當天/任教之班級
+      // 反向連動：切換請假教師時，自動為其載入當天專屬課表 (支援科任跨班)
       selectAbsentTeacher.addEventListener('change', () => {
         const val = selectAbsentTeacher.value;
         if (val === '__custom__') {
@@ -1521,42 +1665,6 @@ input[type="checkbox"] {
         } else {
           inputAbsentTeacherCustom.style.display = 'none';
           inputAbsentTeacherCustom.value = '';
-          
-          if (val) {
-            const dateVal = inputStartDate.value || inputDate.value;
-            const dateObj = new Date(dateVal.replace(/-/g, '/'));
-            const dayOfWeek = dateObj.getDay();
-
-            // 1. 優先檢查當天該教師是否有課的班級
-            let matchedClass = null;
-            const allClasses = Object.keys(TIMETABLE_DATABASE);
-            if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-              for (let c = 0; c < allClasses.length; c++) {
-                const cls = allClasses[c];
-                const daySchedule = (TIMETABLE_DATABASE[cls] && TIMETABLE_DATABASE[cls][dayOfWeek]) || {};
-                for (let p in daySchedule) {
-                  if (daySchedule[p] && daySchedule[p].teacher && daySchedule[p].teacher.trim() === val.trim()) {
-                    matchedClass = cls;
-                    break;
-                  }
-                }
-                if (matchedClass) break;
-              }
-            }
-
-            // 2. 若當天無排課，則找任教之任一班級
-            if (!matchedClass) {
-              const teacherClasses = getClassesForTeacher(val);
-              if (teacherClasses.length > 0) {
-                matchedClass = teacherClasses[0];
-              }
-            }
-
-            if (matchedClass && inputClass.value !== matchedClass) {
-              inputClass.value = matchedClass;
-              updateTeacherDropdown();
-            }
-          }
         }
         autoFillTimetable();
       });
@@ -1870,21 +1978,41 @@ input[type="checkbox"] {
 
           workingDays.forEach((dayInfo, idx) => {
             const dayNum = dayInfo.dayOfWeek;
+            // 優先取得請假教師個人排課
+            const teacherSchedule = getTeacherDaySchedule(absentTeacher, dayNum);
+            const hasTeacherSchedule = Object.keys(teacherSchedule).length > 0;
             const daySchedule = classTimetable[dayNum] || {};
             const periodsDetail = [];
             let periodsCount = 0;
+            const classesOnDay = hasTeacherSchedule ? Array.from(new Set(Object.values(teacherSchedule).map(x => x.className))).sort() : [inputClass.value];
+            const isMultiClass = classesOnDay.length > 1;
 
             for (let p = 1; p <= 7; p++) {
-              const pInfo = daySchedule[p];
-              const subj = (pInfo && pInfo.subject) ? pInfo.subject : '';
-              if (isDaily || subj) {
-                periodsCount++;
-                periodsDetail.push({
-                  period: String(p),
-                  paid: true,
-                  subject: subj || '課堂指導',
-                  handover: ''
-                });
+              if (hasTeacherSchedule) {
+                const tSlot = teacherSchedule[p];
+                if (isDaily || tSlot) {
+                  periodsCount++;
+                  periodsDetail.push({
+                    period: String(p),
+                    paid: true,
+                    subject: tSlot ? (isMultiClass ? `[${tSlot.className}班] ${tSlot.subject}` : tSlot.subject) : '課堂指導',
+                    className: tSlot ? tSlot.className : inputClass.value,
+                    handover: ''
+                  });
+                }
+              } else {
+                const pInfo = daySchedule[p];
+                const subj = (pInfo && pInfo.subject) ? pInfo.subject : '';
+                if (isDaily || subj) {
+                  periodsCount++;
+                  periodsDetail.push({
+                    period: String(p),
+                    paid: true,
+                    subject: subj || '課堂指導',
+                    className: inputClass.value,
+                    handover: ''
+                  });
+                }
               }
             }
 
@@ -1895,6 +2023,7 @@ input[type="checkbox"] {
                   period: item,
                   paid: false,
                   subject: item + '指導',
+                  className: inputClass.value,
                   handover: ''
                 });
               });
@@ -1908,7 +2037,7 @@ input[type="checkbox"] {
               level: 'elementary',
               absentTeacher: absentTeacher,
               subTeacher: inputSubTeacher.value.trim(),
-              className: inputClass.value,
+              className: isMultiClass ? `科任 (${classesOnDay.join(', ')})` : (classesOnDay[0] || inputClass.value),
               leaveType: selectLeaveType.value,
               periodsCount: periodsCount,
               rate: CURRENT_RATE,
@@ -1965,7 +2094,7 @@ input[type="checkbox"] {
         }
 
         // =========================================================
-        // 分支 B: 單日模式（含順延至明日模式）
+        // 分流 B: 單日模式（含順延至明日模式）
         // =========================================================
         const calc = calculateCurrentFee();
         if (calc.periodsCount === 0) {
@@ -1985,7 +2114,8 @@ input[type="checkbox"] {
               period: row.getAttribute('data-period'),
               paid: row.getAttribute('data-paid') === 'true',
               subject: row.cells[3].querySelector('input').value,
-              handover: row.cells[4].querySelector('input').value
+              handover: row.cells[4].querySelector('input').value,
+              className: row.getAttribute('data-class') || inputClass.value
             });
           }
         });
@@ -2162,6 +2292,110 @@ ${details.length > 0 ? details.join('\n') : '• 無特定勾選項目'}
 
       // Run initial check
       autoFillTimetable();
+
+      // =============================================================
+      // 智慧連動：解析 URL 參數 (供課表查詢或其他模組一鍵跳轉帶入)
+      // 支援三軌安全讀取：1. GAS 伺服端直注 2. window.location 3. window.top
+      // =============================================================
+      function checkAndApplyUrlParams() {
+        try {
+          const params = {};
+
+          // 1. 優先從 GAS 後端 doGet 注入的 SERVER_URL_PARAMS 讀取 (100% 免疫 iframe 限制)
+          if (typeof SERVER_URL_PARAMS !== 'undefined' && SERVER_URL_PARAMS && Object.keys(SERVER_URL_PARAMS).length > 0) {
+            for (let k in SERVER_URL_PARAMS) {
+              params[k] = SERVER_URL_PARAMS[k];
+            }
+          }
+
+          // 2. 次要從當前 iframe 的 location.search 讀取
+          try {
+            const urlParams = new URLSearchParams(window.location.search);
+            for (let [k, v] of urlParams.entries()) {
+              if (!params[k]) params[k] = v;
+            }
+          } catch (e) {}
+
+          // 3. 嘗試從最外層 window.top 的 location.search 讀取
+          try {
+            if (window.top && window.top !== window && window.top.location) {
+              const topParams = new URLSearchParams(window.top.location.search);
+              for (let [k, v] of topParams.entries()) {
+                if (!params[k]) params[k] = v;
+              }
+            }
+          } catch (e) {}
+
+          const paramTeacher = params.teacher || params.absentTeacher || '';
+          const paramClass = params.class || params.className || '';
+          const paramPeriod = params.period || '';
+          const paramDate = params.date || '';
+          const paramSubTeacher = params.subTeacher || params.sub || '';
+
+          if (paramDate) {
+            if (inputDate) inputDate.value = paramDate;
+            if (inputStartDate) inputStartDate.value = paramDate;
+            if (inputEndDate) inputEndDate.value = paramDate;
+          }
+
+          if (paramClass) {
+            inputClass.value = paramClass;
+          }
+
+          if (paramSubTeacher && inputSubTeacher) {
+            inputSubTeacher.value = paramSubTeacher;
+          }
+
+          if (paramTeacher) {
+            PRESELECTED_TEACHER = paramTeacher.trim();
+
+            let found = false;
+            for (let opt of selectAbsentTeacher.options) {
+              if (opt.value && opt.value.trim() === PRESELECTED_TEACHER) {
+                selectAbsentTeacher.value = opt.value;
+                found = true;
+                break;
+              }
+            }
+
+            if (!found) {
+              const dynamicOpt = document.createElement('option');
+              dynamicOpt.value = PRESELECTED_TEACHER;
+              dynamicOpt.textContent = `⭐ ${PRESELECTED_TEACHER}`;
+              selectAbsentTeacher.insertBefore(dynamicOpt, selectAbsentTeacher.firstChild.nextSibling);
+              selectAbsentTeacher.value = PRESELECTED_TEACHER;
+            }
+
+            inputAbsentTeacherCustom.style.display = 'none';
+            inputAbsentTeacherCustom.value = '';
+          }
+
+          // 立即執行排課檢索，自動載入該教師課表並打勾！
+          autoFillTimetable();
+
+          // 若指定特定節次 (如 period=2 或 period=第2節)
+          if (paramPeriod) {
+            const pId = String(paramPeriod).replace(/[^0-9]/g, '');
+            if (pId) {
+              setTimeout(() => {
+                const targetRow = document.querySelector(`#schedule-tbody tr[data-period="${pId}"]`);
+                if (targetRow) {
+                  const chk = targetRow.querySelector('input[type="checkbox"]');
+                  if (chk) {
+                    chk.checked = true;
+                    chk.dispatchEvent(new Event('change'));
+                  }
+                }
+                calculateCurrentFee();
+              }, 150);
+            }
+          }
+        } catch (e) {
+          console.warn('解析 URL 參數失敗:', e);
+        }
+      }
+
+      checkAndApplyUrlParams();
     });
   </script>
 </body>

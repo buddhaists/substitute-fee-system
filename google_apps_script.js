@@ -121,6 +121,7 @@ function getTitleForPage(page, schoolName) {
   var school = (schoolName && String(schoolName).trim()) ? String(schoolName).trim() : '代課系統';
   if (page === 'admin') return school + ' - 代課費計算與管理後台 (行政端)';
   if (page === 'teacher') return school + ' - 代課與交接單填報 (教師端)';
+  if (page === 'timetable') return school + ' - 全校課表查詢系統 (班級/科任/專科教室)';
   return school + ' - 代課費計算與管理系統';
 }
 
@@ -137,6 +138,10 @@ function doGet(e) {
     if (params.action === "timetable") {
       var ss = getActiveSs();
       return getCorsResponse(JSON.stringify(buildTimetable(ss)), 'json');
+    }
+
+    if (params.action === "schedule_data" || params.action === "getScheduleData") {
+      return getCorsResponse(JSON.stringify(getScheduleData()), 'json');
     }
 
     if (params.action === "settings") {
@@ -178,13 +183,14 @@ function doGet(e) {
     // 2. 網頁渲染模式 (Google Apps Script Web App 頁面切換)
     // -------------------------------------------------------------
     var page = params.page || 'index';
-    if (page !== 'admin' && page !== 'teacher' && page !== 'index') {
+    if (page !== 'admin' && page !== 'teacher' && page !== 'timetable' && page !== 'index') {
       page = 'index';
     }
 
     var template = createTemplateHelper(page);
     template.page = page;
     template.scriptUrl = getScriptUrl();
+    template.urlParams = params;
 
     var activeSs = null;
     try {
@@ -291,7 +297,7 @@ function saveHandoverRecord(data) {
         detailRows.push([
           appId,
           data.date,
-          data.className || "",
+          p.className || data.className || "",
           p.period,
           p.subject || "",
           p.subTeacher || data.subTeacher || "",
@@ -499,9 +505,30 @@ function importTimetableData(rows, mode, key) {
       }
       sheet.getRange(2, 1, finalData.length, 5).setValues(finalData);
 
-      responseMessage = "【智慧更新成功】已更新「" + incomingClassesList.join("、") + "」等 " +
-        incomingClassesList.length + " 個班級課表（共 " + dataToWrite.length + " 節），其餘班級完整保留！目前全校共 " +
-        finalData.length + " 節課。";
+      // 同步清空與更新「班級課表」分頁（若試算表中存在），確保讀取一致
+      var stdSheet = ss.getSheetByName("班級課表") || ss.getSheetByName("班級課表(含未排課)");
+      if (stdSheet) {
+        try {
+          var stdLastRow = stdSheet.getLastRow();
+          if (mode === 'overwrite') {
+            if (stdLastRow > 1) {
+              stdSheet.getRange(2, 1, stdLastRow - 1, Math.max(5, stdSheet.getLastColumn())).clearContent();
+            }
+            stdSheet.getRange(2, 1, dataToWrite.length, 5).setValues(dataToWrite);
+          } else if (mode === 'append') {
+            stdSheet.getRange(stdLastRow + 1, 1, dataToWrite.length, 5).setValues(dataToWrite);
+          } else {
+            // smart_upsert
+            var stdFinal = retainedRows.concat(dataToWrite);
+            if (stdLastRow > 1) {
+              stdSheet.getRange(2, 1, stdLastRow - 1, Math.max(5, stdSheet.getLastColumn())).clearContent();
+            }
+            stdSheet.getRange(2, 1, stdFinal.length, 5).setValues(stdFinal);
+          }
+        } catch (sErr) {
+          console.log("同步更新班級課表分頁略過: " + sErr);
+        }
+      }
     }
 
     // 清除課表快取以使新匯入資料即時生效
@@ -737,6 +764,73 @@ function getOrCreateSheet(ss, name, headers) {
   return sheet;
 }
 
+/**
+ * 取得全校課表數據 (提供給全校課表查詢頁面初始化載入)
+ * 支援由試算表「班級課表」、「科任課表」、「專科教室課表」動態抓取
+ */
+function getScheduleData() {
+  try {
+    var ss = getActiveSs();
+    if (!ss) {
+      throw new Error("無法取得試算表，請確認已綁定試算表。");
+    }
+    
+    var classSheet = ss.getSheetByName("班級課表") || ss.getSheetByName("班級課表(含未排課)") || ss.getSheetByName("Class_Timetables") || ss.getSheets()[0];
+    var teacherSheet = ss.getSheetByName("科任課表") || (ss.getSheets().length > 1 ? ss.getSheets()[1] : null);
+    var roomSheet = ss.getSheetByName("專科教室課表(19間)") || ss.getSheetByName("專科教室課表") || (ss.getSheets().length > 2 ? ss.getSheets()[2] : null);
+    
+    var classes = readSheetToObjects(classSheet);
+    var teachers = teacherSheet ? readSheetToObjects(teacherSheet) : [];
+    var rooms = roomSheet ? readSheetToObjects(roomSheet) : [];
+    
+    return {
+      success: true,
+      data: {
+        classes: classes,
+        teachers: teachers,
+        rooms: rooms
+      }
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err.toString()
+    };
+  }
+}
+
+function readSheetToObjects(sheet) {
+  if (!sheet) return [];
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return [];
+  
+  var data = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+  var headers = data[0].map(function(h) { return String(h).trim(); });
+  var rows = [];
+  
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    var obj = {};
+    var hasValue = false;
+    for (var j = 0; j < headers.length; j++) {
+      var val = (row[j] !== undefined && row[j] !== null) ? String(row[j]).trim() : "";
+      obj[headers[j]] = val;
+      if (val !== "") hasValue = true;
+    }
+    if (hasValue) {
+      rows.push(obj);
+    }
+  }
+  return rows;
+}
+
+/**
+ * 智慧解析課表資料結構（供教師端交接單連動課表使用）
+ * 雙軌支援：
+ * 1. 優先讀取「班級課表」分頁（課表查詢系統標準中文匯出格式：班級/教室、星期、節次、科目、上課老師）
+ * 2. 次要降級相容「Class_Timetables」分頁（原 5 欄純數字格式）
+ */
 function buildTimetable(ss) {
   if (!ss) return { db: {}, teachers: [], classes: [] };
   try {
@@ -747,6 +841,90 @@ function buildTimetable(ss) {
     }
   } catch (cErr) {}
 
+  var db = {};
+  var teachersMap = {};
+  var classesMap = {};
+
+  // 星期文字對照表
+  var dayMap = {
+    '星期一': 1, '週一': 1, '一': 1, '1': 1,
+    '星期二': 2, '週二': 2, '二': 2, '2': 2,
+    '星期三': 3, '週三': 3, '三': 3, '3': 3,
+    '星期四': 4, '週四': 4, '四': 4, '4': 4,
+    '星期五': 5, '週五': 5, '五': 5, '5': 5
+  };
+
+  // 優先讀取後台維護之「Class_Timetables」分頁；若無則讀取標準「班級課表」分頁
+  var ctSheet = ss.getSheetByName(TIMETABLE_SHEET);
+  var standardSheet = ss.getSheetByName("班級課表") || ss.getSheetByName("班級課表(含未排課)");
+  var targetSheet = (ctSheet && ctSheet.getLastRow() > 1) ? ctSheet : standardSheet;
+
+  if (targetSheet && targetSheet.getLastRow() > 1) {
+    var data = targetSheet.getDataRange().getValues();
+    var headers = data[0].map(function(h) { return String(h).trim(); });
+    
+    var colCls = -1, colDay = -1, colPeriod = -1, colSubj = -1, colTeacher = -1;
+    for (var h = 0; h < headers.length; h++) {
+      var head = headers[h];
+      if ((head.indexOf('班級') !== -1 || head.indexOf('教室') !== -1) && head.indexOf('上課地點') === -1) { 
+        if (colCls === -1) colCls = h; 
+      }
+      else if (head.indexOf('星期') !== -1 || head.indexOf('週') !== -1) { 
+        if (colDay === -1) colDay = h; 
+      }
+      else if (head.indexOf('節次') !== -1 || head.indexOf('節') !== -1) { 
+        if (colPeriod === -1) colPeriod = h; 
+      }
+      else if (head.indexOf('科目') !== -1 || head.indexOf('課程') !== -1) { 
+        if (colSubj === -1) colSubj = h; 
+      }
+      else if (head.indexOf('身份') === -1 && head.indexOf('代課') === -1 && (head.indexOf('老師') !== -1 || head.indexOf('教師') !== -1)) { 
+        if (colTeacher === -1) colTeacher = h; 
+      }
+    }
+
+    if (colCls !== -1 && colDay !== -1 && colPeriod !== -1 && colSubj !== -1 && colTeacher !== -1) {
+      for (var r = 1; r < data.length; r++) {
+        var row = data[r];
+        var rawCls = row[colCls];
+        if (rawCls === null || rawCls === undefined) continue;
+        var cls = String(rawCls).trim();
+        if (!cls) continue;
+
+        var rawDay = String(row[colDay] || '').trim();
+        var day = dayMap[rawDay] || parseInt(rawDay.replace(/[^0-9]/g, ''), 10);
+
+        var rawPeriod = String(row[colPeriod] || '').trim();
+        var periodMatch = rawPeriod.match(/(\d+)/);
+        var period = periodMatch ? parseInt(periodMatch[1], 10) : parseInt(rawPeriod, 10);
+
+        var subject = String(row[colSubj] || '').trim();
+        var teacher = String(row[colTeacher] || '').trim();
+
+        if (isNaN(day) || isNaN(period) || day < 1 || day > 7 || period < 1) continue;
+        if (subject === '（無排課）' || subject === '—' || subject === '無' || subject === '無課') continue;
+
+        if (!db[cls]) db[cls] = {};
+        if (!db[cls][day]) db[cls][day] = {};
+        db[cls][day][period] = { subject: subject, teacher: teacher };
+
+        classesMap[cls] = true;
+        if (teacher && teacher !== '—' && teacher !== '-') teachersMap[teacher] = true;
+      }
+
+      var teachers = Object.keys(teachersMap).sort();
+      var classes = Object.keys(classesMap).sort();
+      var result = { db: db, teachers: teachers, classes: classes };
+
+      try {
+        CacheService.getScriptCache().put("TIMETABLE_DB", JSON.stringify(result), 300);
+      } catch (pErr) {}
+
+      return result;
+    }
+  }
+
+  // 2. 次要備援降級：直接讀取標準 5 欄 Class_Timetables
   var sheet = ss.getSheetByName(TIMETABLE_SHEET);
   if (!sheet) return { db: {}, teachers: [], classes: [] };
 
@@ -754,9 +932,6 @@ function buildTimetable(ss) {
   if (lastRow <= 1) return { db: {}, teachers: [], classes: [] };
 
   var values = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
-  var db = {};
-  var teachersMap = {};
-  var classesMap = {};
 
   for (var i = 0; i < values.length; i++) {
     var rawCls = values[i][0];
@@ -767,13 +942,14 @@ function buildTimetable(ss) {
     var subject = String(values[i][3] || '').trim();
     var teacher = String(values[i][4] || '').trim();
     if (!cls || isNaN(day) || isNaN(period)) continue;
+    if (subject === '（無排課）' || subject === '—' || subject === '無') continue;
 
     if (!db[cls]) db[cls] = {};
     if (!db[cls][day]) db[cls][day] = {};
     db[cls][day][period] = { subject: subject, teacher: teacher };
 
     if (cls) classesMap[cls] = true;
-    if (teacher) teachersMap[teacher] = true;
+    if (teacher && teacher !== '—' && teacher !== '-') teachersMap[teacher] = true;
   }
 
   var teachers = Object.keys(teachersMap).sort();

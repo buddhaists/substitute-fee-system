@@ -215,6 +215,11 @@ header p {
   transform: scale(1.1);
 }
 
+.timetable-card .icon-wrapper {
+  background-color: #e0f2fe;
+  color: #0284c7;
+}
+
 .teacher-card .icon-wrapper {
   background-color: #eff6ff;
   color: #3b82f6;
@@ -292,6 +297,9 @@ footer {
         <a href="<?= appUrl ?>" class="nav-item active" target="_top" onclick="navTo(''); return false;">
           <i class="fa-solid fa-house"></i> 首頁入口
         </a>
+        <a href="<?= appUrl ?>?page=timetable" class="nav-item" target="_top" onclick="navTo('timetable'); return false;">
+          <i class="fa-solid fa-calendar-days"></i> 全校課表查詢
+        </a>
         <a href="<?= appUrl ?>?page=teacher" class="nav-item" target="_top" onclick="navTo('teacher'); return false;">
           <i class="fa-solid fa-file-signature"></i> 教師交接端
         </a>
@@ -307,6 +315,18 @@ footer {
     </header>
     
     <div class="grid-portal">
+
+      <!-- Timetable Portal Link (NEW) -->
+      <a href="<?= appUrl ?>?page=timetable" class="portal-card timetable-card" target="_top" onclick="navTo('timetable'); return false;">
+        <div class="icon-wrapper">
+          <i class="fa-solid fa-calendar-days"></i>
+        </div>
+        <h2>全校課表查詢</h2>
+        <p>提供全校各班級、科任老師與專科教室三合一課表查詢，具備即時時鐘、當前節次高亮提示，可直接連動申報代課。</p>
+        <div class="card-footer-badge">
+          <span>進入課表查詢</span> <i class="fa-solid fa-arrow-right"></i>
+        </div>
+      </a>
       
       <!-- Teacher Portal Link -->
       <a href="<?= appUrl ?>?page=teacher" class="portal-card teacher-card" target="_top" onclick="navTo('teacher'); return false;">
