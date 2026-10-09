@@ -217,6 +217,14 @@ function doGet(e) {
       }
     }
 
+    if (page === 'timetable') {
+      try {
+        template.initialScheduleData = JSON.stringify(getScheduleData());
+      } catch (e) {
+        template.initialScheduleData = "{}";
+      }
+    }
+
     return template.evaluate()
       .setTitle(getTitleForPage(page, currentSchool))
       .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
