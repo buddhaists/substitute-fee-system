@@ -4292,7 +4292,6 @@ td.current-period-cell::after {
       }
 
       // 檢查網址參數自動定位分頁 (例如 ?tab=timetable 或由首頁傳入)
-      const urlParamsObj = new URLSearchParams(window.location.search);
       const initialTabParam = urlParamsObj.get('tab');
       const initialPageParam = urlParamsObj.get('page');
       if (initialTabParam === 'timetable' || initialPageParam === 'timetable' || (typeof SERVER_URL_PARAMS !== 'undefined' && (SERVER_URL_PARAMS.tab === 'timetable' || SERVER_URL_PARAMS.page === 'timetable'))) {
