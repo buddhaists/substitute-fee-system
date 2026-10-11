@@ -564,6 +564,7 @@ function importTimetableData(rows, mode, key) {
       clearLargeCache("TIMETABLE_DB");
       clearLargeCache("SCHEDULE_DATA_CACHE_V2");
       clearLargeCache("SCHEDULE_DATA_CACHE_V3");
+      clearLargeCache("SCHEDULE_DATA_CACHE_V4");
     } catch (cErr) {}
 
     return {
@@ -876,7 +877,7 @@ function getScheduleData() {
   try {
     // 1. 優先嘗試由 GAS 記憶體快取秒讀 (有效期限 6 小時，超速 5ms 直出)
     try {
-      var cachedStr = getLargeCache("SCHEDULE_DATA_CACHE_V3");
+      var cachedStr = getLargeCache("SCHEDULE_DATA_CACHE_V4");
       if (cachedStr) {
         return JSON.parse(cachedStr);
       }
@@ -913,7 +914,7 @@ function getScheduleData() {
     // 存入全域快取 (有效時間 6 小時 = 21600 秒)
     try {
       var cacheStr = JSON.stringify(resultData);
-      putLargeCache("SCHEDULE_DATA_CACHE_V3", cacheStr, 21600);
+      putLargeCache("SCHEDULE_DATA_CACHE_V4", cacheStr, 21600);
     } catch (putErr) {}
 
     return resultData;
@@ -1044,7 +1045,7 @@ function buildTimetable(ss) {
     var data = targetSheet.getDataRange().getValues();
     var headers = data[0].map(function(h) { return String(h).trim(); });
     
-    var colCls = -1, colDay = -1, colPeriod = -1, colSubj = -1, colTeacher = -1;
+    var colCls = -1, colDay = -1, colPeriod = -1, colSubj = -1, colTeacher = -1, colHomeroom = -1, colRole = -1;
     for (var h = 0; h < headers.length; h++) {
       var head = headers[h];
       if ((head.indexOf('班級') !== -1 || head.indexOf('教室') !== -1) && head.indexOf('上課地點') === -1) { 
@@ -1059,11 +1060,18 @@ function buildTimetable(ss) {
       else if (head.indexOf('科目') !== -1 || head.indexOf('課程') !== -1) { 
         if (colSubj === -1) colSubj = h; 
       }
-      else if (head.indexOf('身份') === -1 && head.indexOf('代課') === -1 && (head.indexOf('老師') !== -1 || head.indexOf('教師') !== -1)) { 
+      else if (head.indexOf('導師') !== -1) {
+        if (colHomeroom === -1) colHomeroom = h;
+      }
+      else if (head.indexOf('身份') !== -1 || head.indexOf('職稱') !== -1) {
+        if (colRole === -1) colRole = h;
+      }
+      else if (head.indexOf('代課') === -1 && (head.indexOf('老師') !== -1 || head.indexOf('教師') !== -1)) { 
         if (colTeacher === -1) colTeacher = h; 
       }
     }
 
+    var explicitClassTeachers = {};
     if (colCls !== -1 && colDay !== -1 && colPeriod !== -1 && colSubj !== -1 && colTeacher !== -1) {
       for (var r = 1; r < data.length; r++) {
         var row = data[r];
@@ -1081,6 +1089,16 @@ function buildTimetable(ss) {
 
         var subject = String(row[colSubj] || '').trim();
         var teacher = String(row[colTeacher] || '').trim();
+
+        // 讀取明記之導師欄位
+        if (!explicitClassTeachers[cls]) {
+          if (colHomeroom !== -1 && row[colHomeroom]) {
+            var hrVal = String(row[colHomeroom]).trim();
+            if (hrVal && hrVal !== '未指定' && hrVal !== '—' && hrVal !== '-') explicitClassTeachers[cls] = hrVal;
+          } else if (colRole !== -1 && row[colRole] && String(row[colRole]).indexOf('導師') !== -1) {
+            if (teacher && teacher !== '—' && teacher !== '-' && teacher !== '未指定') explicitClassTeachers[cls] = teacher;
+          }
+        }
 
         if (isNaN(day) || isNaN(period) || day < 1 || day > 7 || period < 1) continue;
         if (subject === '（無排課）' || subject === '—' || subject === '無' || subject === '無課') continue;
@@ -1126,10 +1144,14 @@ function buildTimetable(ss) {
   var teachers = Object.keys(teachersMap).sort();
   var classes = Object.keys(classesMap).sort();
 
-  // 智慧推導各班級導師 (以國語文任課教師為首選，授課節數最多者為備選)
+  // 智慧推導各班級導師 (優先使用試算表明記之導師，備選以國語文任課教師，次選授課節數最多者)
   var classTeachers = {};
   for (var c = 0; c < classes.length; c++) {
     var cName = classes[c];
+    if (explicitClassTeachers && explicitClassTeachers[cName] && explicitClassTeachers[cName] !== '未指定' && explicitClassTeachers[cName] !== '—') {
+      classTeachers[cName] = explicitClassTeachers[cName];
+      continue;
+    }
     var cDays = db[cName] || {};
     var counts = {};
     var mandarinTeacher = "";
@@ -1140,7 +1162,10 @@ function buildTimetable(ss) {
         if (it && it.teacher && it.teacher !== '—' && it.teacher !== '-' && it.teacher !== '未指定') {
           counts[it.teacher] = (counts[it.teacher] || 0) + 1;
           var subj = it.subject || '';
-          if ((subj.indexOf('國語') !== -1 || subj.indexOf('語文') !== -1 || subj.indexOf('導師') !== -1) && !mandarinTeacher) {
+          // ⚠️ 排除英語文、本土語文、新住民語文等科任科目，精準辨識國語文/級任教師
+          var isNonMandarinLang = (subj.indexOf('英') !== -1 || subj.indexOf('本土') !== -1 || subj.indexOf('閩') !== -1 || subj.indexOf('客') !== -1 || subj.indexOf('原住') !== -1 || subj.indexOf('新住民') !== -1);
+          var isMandarin = !isNonMandarinLang && (subj.indexOf('國語') !== -1 || subj.indexOf('國文') !== -1 || subj.indexOf('語文') !== -1 || subj.indexOf('導師') !== -1 || subj.indexOf('晨光') !== -1);
+          if (isMandarin && !mandarinTeacher) {
             mandarinTeacher = it.teacher;
           }
         }

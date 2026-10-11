@@ -872,7 +872,7 @@ td.current-period-cell::after {
     var PRELOAD_TIMETABLE_DB = null;
     (function() {
       try {
-        var rawLocal = localStorage.getItem('sub_timetable_data_cache_v2');
+        var rawLocal = localStorage.getItem('sub_timetable_data_cache_v3');
         if (rawLocal) {
           var parsed = JSON.parse(rawLocal);
           if (parsed && (parsed.classes || parsed.db)) PRELOAD_TIMETABLE_DB = parsed;
@@ -882,7 +882,7 @@ td.current-period-cell::after {
           var sData = (parsedS && parsedS.success && parsedS.data) ? parsedS.data : parsedS;
           if (sData && (sData.classes || sData.db)) {
             PRELOAD_TIMETABLE_DB = sData;
-            localStorage.setItem('sub_timetable_data_cache_v2', JSON.stringify(sData));
+            localStorage.setItem('sub_timetable_data_cache_v3', JSON.stringify(sData));
             localStorage.setItem('sub_timetable_cache_timestamp', String(Date.now()));
           }
         }
@@ -3326,7 +3326,7 @@ td.current-period-cell::after {
       // ============================================================
       // ⚡ 10,000 倍極速 SWR 秒開引擎 (4-in-1 全校課表查詢系統)
       // ============================================================
-      const LOCAL_CACHE_KEY = 'sub_timetable_data_cache_v2';
+      const LOCAL_CACHE_KEY = 'sub_timetable_data_cache_v3';
       const LOCAL_CACHE_TIME_KEY = 'sub_timetable_cache_timestamp';
       let DB = (typeof PRELOAD_TIMETABLE_DB !== 'undefined' && PRELOAD_TIMETABLE_DB) ? PRELOAD_TIMETABLE_DB : null;
       let isUIRendered = false;
@@ -3439,10 +3439,8 @@ td.current-period-cell::after {
 
       function detectHomeroom(classRows, selectedClass) {
         const cKey = normalizeClassKey(selectedClass);
-        if (DB && DB.classTeachers && DB.classTeachers[cKey]) {
-          const hr = String(DB.classTeachers[cKey]).trim();
-          if (hr && hr !== "未指定" && hr !== "—" && hr !== "-") return hr;
-        }
+
+        // 1. 若課表資料列中有明確標記「導師」欄位，優先以試算表或匯入資料之明記導師為準
         if (classRows && classRows.length > 0) {
           for (let i = 0; i < classRows.length; i++) {
             const hr = String(classRows[i]["導師"] || classRows[i]["級任導師"] || classRows[i]["導師姓名"] || classRows[i]["級任"] || classRows[i]["班導"] || classRows[i]["Homeroom"] || "").trim();
@@ -3453,10 +3451,21 @@ td.current-period-cell::after {
             const tea = String(classRows[i]["上課老師"] || classRows[i]["授課教師"] || classRows[i]["任課教師"] || classRows[i]["教師"] || classRows[i]["老師"] || "").trim();
             if (role.includes("導師") && tea && tea !== "—" && tea !== "-" && tea !== "未指定") return tea;
           }
+        }
+
+        // 2. 次要優先：若後端已推導出 classTeachers
+        if (DB && DB.classTeachers && DB.classTeachers[cKey]) {
+          const hr = String(DB.classTeachers[cKey]).trim();
+          if (hr && hr !== "未指定" && hr !== "—" && hr !== "-") return hr;
+        }
+
+        // 3. 備援推導 (嚴格排除英語文、本土語文等科任科目，以國語文/晨光/導師時間任課教師為準)
+        if (classRows && classRows.length > 0) {
           for (let i = 0; i < classRows.length; i++) {
             const subj = String(classRows[i]["科目"] || classRows[i]["課程"] || classRows[i]["科目名稱"] || "").trim();
             const tea = String(classRows[i]["上課老師"] || classRows[i]["授課教師"] || classRows[i]["任課教師"] || classRows[i]["教師"] || classRows[i]["老師"] || "").trim();
-            if ((subj.includes("國語") || subj.includes("語文") || subj.includes("導師") || subj.includes("晨光")) && tea && tea !== "—" && tea !== "-" && tea !== "未指定") return tea;
+            const isNonMandarin = subj.includes("英") || subj.includes("本土") || subj.includes("閩") || subj.includes("客") || subj.includes("原住") || subj.includes("新住民");
+            if (!isNonMandarin && (subj.includes("國語") || subj.includes("國文") || subj.includes("語文") || subj.includes("導師") || subj.includes("晨光")) && tea && tea !== "—" && tea !== "-" && tea !== "未指定") return tea;
           }
           const counts = {};
           classRows.forEach(r => {
@@ -3469,6 +3478,7 @@ td.current-period-cell::after {
           }
           if (maxT !== "未指定") return maxT;
         }
+
         if (DB && DB.db && DB.db[cKey]) {
           const counts = {};
           let mandarinTea = "";
@@ -3480,7 +3490,8 @@ td.current-period-cell::after {
               if (item && item.teacher && item.teacher !== "—" && item.teacher !== "-" && item.teacher !== "未指定") {
                 counts[item.teacher] = (counts[item.teacher] || 0) + 1;
                 const subj = item.subject || "";
-                if ((subj.includes("國語") || subj.includes("語文") || subj.includes("導師")) && !mandarinTea) mandarinTea = item.teacher;
+                const isNonMandarin = subj.includes("英") || subj.includes("本土") || subj.includes("閩") || subj.includes("客") || subj.includes("原住") || subj.includes("新住民");
+                if (!isNonMandarin && (subj.includes("國語") || subj.includes("國文") || subj.includes("語文") || subj.includes("導師")) && !mandarinTea) mandarinTea = item.teacher;
               }
             }
           }
@@ -3677,16 +3688,16 @@ td.current-period-cell::after {
 
       function getSubjectTheme(subj) {
         if (!subj || subj === "（無排課）" || subj === "—" || subj === "無課") return "theme-default";
-        if (subj.includes("國語") || subj.includes("語文") || subj.includes("寫作")) return "theme-mandarin";
-        if (subj.includes("數學") || subj.includes("幾何")) return "theme-math";
         if (subj.includes("英語") || subj.includes("國際") || subj.includes("美語") || subj.includes("雙語")) return "theme-english";
+        if (subj.includes("本土") || subj.includes("閩") || subj.includes("客") || subj.includes("原") || subj.includes("新住民")) return "theme-local";
+        if (subj.includes("國語") || subj.includes("國文") || subj.includes("語文") || subj.includes("寫作")) return "theme-mandarin";
+        if (subj.includes("數學") || subj.includes("幾何")) return "theme-math";
         if (subj.includes("自然") || subj.includes("科學") || subj.includes("生物")) return "theme-science";
         if (subj.includes("社會") || subj.includes("歷史") || subj.includes("地理")) return "theme-social";
         if (subj.includes("生活") || subj.includes("品格")) return "theme-life";
         if (subj.includes("音樂") || subj.includes("美勞") || subj.includes("藝術") || subj.includes("視覺") || subj.includes("表演")) return "theme-art";
         if (subj.includes("體育") || subj.includes("健康") || subj.includes("健體") || subj.includes("桌球") || subj.includes("游泳")) return "theme-pe";
         if (subj.includes("資訊") || subj.includes("科技") || subj.includes("電腦") || subj.includes("程式")) return "theme-info";
-        if (subj.includes("本土") || subj.includes("閩") || subj.includes("客") || subj.includes("原")) return "theme-local";
         return "theme-default";
       }
 
