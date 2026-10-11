@@ -127,14 +127,16 @@ function getScriptUrl(ss) {
 /**
  * 輔助：依頁面名稱與學校名稱動態取得分頁標題
  */
-function getTitleForPage(page, schoolName, tab) {
+function getTitleForPage(page, schoolName, tab, source) {
   var school = (schoolName && String(schoolName).trim()) ? String(schoolName).trim() : '代課系統';
   if (page === 'admin') {
-    if (tab === 'timetable') return school + ' - 全校課表查詢與管理';
+    if (tab === 'timetable') {
+      return (source === 'portal') ? (school + ' - 全校課表查詢系統') : (school + ' - 全校課表查詢與管理');
+    }
     return school + ' - 代課費計算與管理後台 (行政端)';
   }
   if (page === 'teacher') return school + ' - 代課與交接單填報 (教師端)';
-  if (page === 'timetable') return school + ' - 全校課表查詢與管理';
+  if (page === 'timetable') return school + ' - 全校課表查詢系統';
   return school + ' - 代課費計算與管理系統';
 }
 
@@ -196,10 +198,11 @@ function doGet(e) {
     // 2. 網頁渲染模式 (Google Apps Script Web App 頁面切換)
     // -------------------------------------------------------------
     var page = params.page || 'index';
-    // 【課表模組無縫整併重定向】：若請求 page=timetable，平滑無縫導向至 admin.html 課表分頁
+    // 【課表模組無縫整併重定向】：若請求 page=timetable，平滑無縫導向至 admin.html 課表分頁 (首頁入口模式)
     if (page === 'timetable') {
       page = 'admin';
       params.tab = 'timetable';
+      params.source = 'portal';
     }
     if (page !== 'admin' && page !== 'teacher' && page !== 'index') {
       page = 'index';
@@ -243,7 +246,7 @@ function doGet(e) {
     }
 
     return template.evaluate()
-      .setTitle(getTitleForPage(page, currentSchool, params.tab))
+      .setTitle(getTitleForPage(page, currentSchool, params.tab, params.source))
       .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 

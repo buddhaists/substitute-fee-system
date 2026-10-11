@@ -848,16 +848,21 @@ td.current-period-cell::after {
     var rawUrl = (typeof appUrl !== 'undefined' && appUrl) ? appUrl : ((typeof scriptUrl !== 'undefined' && scriptUrl) ? scriptUrl : '');
     var baseNavUrl = rawUrl ? rawUrl.split('?')[0] : '';
   ?>
-  <? var isTimetableTab = (typeof urlParams !== 'undefined' && urlParams && (urlParams.tab === 'timetable' || urlParams.page === 'timetable')); ?>
-  <? var settingsData = (typeof systemSettings !== 'undefined' && systemSettings) ? JSON.stringify(systemSettings) : '{}'; ?>
-  <? var initialScheduleDataRaw = (typeof initialScheduleData !== 'undefined' && initialScheduleData) ? initialScheduleData : 'null'; ?>
-  <? var urlParamsData = (typeof urlParams !== 'undefined' && urlParams) ? JSON.stringify(urlParams) : '{}'; ?>
+  <? 
+    var isPortalMode = (typeof urlParams !== 'undefined' && urlParams && urlParams.source === 'portal');
+    var isTimetableTab = (typeof urlParams !== 'undefined' && urlParams && (urlParams.tab === 'timetable' || urlParams.page === 'timetable')); 
+    var isDirectTimetableActive = (isPortalMode && isTimetableTab);
+    var settingsData = (typeof systemSettings !== 'undefined' && systemSettings) ? JSON.stringify(systemSettings) : '{}'; 
+    var initialScheduleDataRaw = (typeof initialScheduleData !== 'undefined' && initialScheduleData) ? initialScheduleData : 'null'; 
+    var urlParamsData = (typeof urlParams !== 'undefined' && urlParams) ? JSON.stringify(urlParams) : '{}'; 
+  ?>
   <script>
     var SERVER_APP_URL = "<?= baseNavUrl ?>";
     var SERVER_SYSTEM_SETTINGS = <?!= settingsData ?>;
     var SERVER_SCHEDULE_DATA_RAW = <?!= initialScheduleDataRaw ?>;
     var SERVER_URL_PARAMS = <?!= urlParamsData ?>;
     var IS_TIMETABLE_TAB = <?= isTimetableTab ? 'true' : 'false' ?>;
+    var IS_PORTAL_MODE = <?= isPortalMode ? 'true' : 'false' ?>;
 
     // ⚡【0ms 瞬開引擎】：在所有 DOM 解析前，搶先還原本地快取並與伺服端資料同步
     var PRELOAD_TIMETABLE_DB = null;
@@ -886,19 +891,19 @@ td.current-period-cell::after {
     <!-- 全域頂部導航選單 (Top Navigation Menu) -->
     <nav class="top-navbar">
       <a href="<?= baseNavUrl ? baseNavUrl : 'javascript:void(0);' ?>" class="nav-brand" target="_top" data-page="" onclick="navTo(''); return false;">
-        <i class="fa-solid fa-graduation-cap"></i> <span id="nav-school-name">代課系統</span>
+        <i class="fa-solid fa-graduation-cap"></i> <span id="nav-school-name"><?= (typeof currentSchool !== 'undefined' && currentSchool) ? currentSchool : '代課系統' ?></span>
       </a>
       <div class="nav-menu">
         <a href="<?= baseNavUrl ? baseNavUrl : 'javascript:void(0);' ?>" class="nav-item" target="_top" data-page="" onclick="navTo(''); return false;">
           <i class="fa-solid fa-house"></i> 首頁入口
         </a>
-        <a href="javascript:void(0);" class="nav-item <?= isTimetableTab ? 'active' : '' ?>" id="nav-item-timetable" target="_top" data-page="timetable" onclick="activateAdminTab('tab-timetable'); return false;">
+        <a href="javascript:void(0);" class="nav-item <?= isDirectTimetableActive ? 'active' : '' ?>" id="nav-item-timetable" target="_top" data-page="timetable" onclick="activateAdminTab('tab-timetable'); return false;">
           <i class="fa-solid fa-calendar-days"></i> 全校課表查詢
         </a>
         <a href="<?= baseNavUrl ? baseNavUrl + '?page=teacher' : 'javascript:void(0);' ?>" class="nav-item" target="_top" data-page="teacher" onclick="navTo('teacher'); return false;">
           <i class="fa-solid fa-file-signature"></i> 教師交接端
         </a>
-        <a href="<?= baseNavUrl ? baseNavUrl + '?page=admin' : 'javascript:void(0);' ?>" class="nav-item <?= isTimetableTab ? '' : 'active' ?>" id="nav-item-admin" target="_top" data-page="admin" onclick="navTo('admin'); return false;">
+        <a href="<?= baseNavUrl ? baseNavUrl + '?page=admin' : 'javascript:void(0);' ?>" class="nav-item <?= isDirectTimetableActive ? '' : 'active' ?>" id="nav-item-admin" target="_top" data-page="admin" onclick="navTo('admin'); return false;">
           <i class="fa-solid fa-calculator"></i> 行政核銷端
         </a>
       </div>
@@ -908,35 +913,36 @@ td.current-period-cell::after {
     <header>
       <div>
         <h1>
-          <i class="fa-solid fa-calculator"></i> <span id="header-school-name">代課費計算與管理後台</span>
+          <i class="<?= isPortalMode ? 'fa-solid fa-calendar-days' : 'fa-solid fa-calculator' ?>"></i> 
+          <span id="header-school-name"><?= isPortalMode ? ((typeof currentSchool !== 'undefined' && currentSchool ? currentSchool : '') + ' 全校課表查詢系統') : ((typeof currentSchool !== 'undefined' && currentSchool ? currentSchool : '') + ' 代課費計算與管理後台') ?></span>
           <span class="gas-env-badge" id="env-badge"><i class="fa-solid fa-bolt"></i> GAS 雲端原生</span>
         </h1>
-        <p>月度代課節數統計、全域系統設定、全校課表批次匯入、Word 核銷清冊下載</p>
+        <p id="header-subtitle"><?= isPortalMode ? '全校班級週課表、教師週課表、專科教室課表、即時查堂找代課' : '月度代課節數統計、全域系統設定、全校課表批次匯入、Word 核銷清冊下載' ?></p>
       </div>
       
-      <!-- Settings Cog -->
-      <button class="settings-trigger" id="btn-open-settings" title="安全金鑰與連線設定">
+      <!-- Settings Cog (管理端專屬) -->
+      <button class="settings-trigger" id="btn-open-settings" title="安全金鑰與連線設定" style="<?= isPortalMode ? 'display: none !important;' : '' ?>">
         <i class="fa-solid fa-key"></i>
       </button>
     </header>
 
-    <!-- ADMIN TABS SWITCHER -->
-    <div class="admin-tabs">
-      <button class="admin-tab-btn <?= isTimetableTab ? '' : 'active' ?>" data-tab="tab-records">
+    <!-- ADMIN TABS SWITCHER (管理端專屬分頁切換) -->
+    <div class="admin-tabs" id="admin-tabs-nav" style="<?= isPortalMode ? 'display: none !important;' : '' ?>">
+      <button class="admin-tab-btn <?= isDirectTimetableActive ? '' : 'active' ?>" data-tab="tab-records">
         <i class="fa-solid fa-calendar-check"></i> 1. 代課核銷結算
       </button>
       <button class="admin-tab-btn" data-tab="tab-settings">
         <i class="fa-solid fa-sliders"></i> 2. 系統全域設定 <i class="fa-solid fa-lock" style="font-size: 0.75rem; opacity: 0.7; margin-left: 0.25rem;"></i>
       </button>
-      <button class="admin-tab-btn <?= isTimetableTab ? 'active' : '' ?>" data-tab="tab-timetable">
-        <i class="fa-solid fa-calendar-week"></i> 3. 全校課表查詢與管理
+      <button class="admin-tab-btn <?= isDirectTimetableActive ? 'active' : '' ?>" data-tab="tab-timetable">
+        <i class="fa-solid fa-calendar-week"></i> 3. 全校課表查詢與管理 <i class="fa-solid fa-lock" style="font-size: 0.75rem; opacity: 0.7; margin-left: 0.25rem;"></i>
       </button>
     </div>
 
     <!-- ============================================================= -->
     <!-- TAB 1: 代課核銷結算 -->
     <!-- ============================================================= -->
-    <div class="tab-pane <?= isTimetableTab ? '' : 'active' ?>" id="tab-records">
+    <div class="tab-pane <?= isDirectTimetableActive ? '' : 'active' ?>" id="tab-records">
       
       <!-- MONTHLY SETTLEMENT OVERVIEW -->
       <section class="panel">
@@ -1246,7 +1252,7 @@ td.current-period-cell::after {
     <!-- ============================================================= -->
     <!-- TAB 3: 全校課表查詢與管理 (Timetable Inquiry & Management)   -->
     <!-- ============================================================= -->
-    <div class="tab-pane <?= isTimetableTab ? 'active' : '' ?>" id="tab-timetable">
+    <div class="tab-pane <?= isDirectTimetableActive ? 'active' : '' ?>" id="tab-timetable">
       
       <!-- 頂部課表看板狀態橫幅與即時時鐘 -->
       <div style="background: white; padding: 1rem 1.25rem; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: var(--shadow); margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
@@ -1458,8 +1464,8 @@ td.current-period-cell::after {
         </div>
       </section>
 
-      <!-- 管理專區：折疊式全校課表批次匯入工具箱 -->
-      <details class="panel" id="admin-import-panel" style="margin-top: 1.5rem; border: 1.5px dashed #0abab5; background: #fafefe;">
+      <!-- 管理專區：折疊式全校課表批次匯入工具箱 (預設隱藏，僅管理員登入後顯示) -->
+      <details class="panel" id="admin-import-panel" style="margin-top: 1.5rem; border: 1.5px dashed #0abab5; background: #fafefe; display: none;">
         <summary style="cursor: pointer; font-weight: 700; color: #0d9488; font-size: 1rem; padding: 0.5rem 0.25rem; display: flex; align-items: center; gap: 0.5rem;">
           <i class="fa-solid fa-file-import"></i> 展開管理專區：全校班級課表批次匯入與排課衝突檢驗工具（CSV / Excel 貼上）
         </summary>
@@ -1903,10 +1909,15 @@ td.current-period-cell::after {
     const isGasEnv = typeof google !== 'undefined' && google.script && google.script.run;
 
     function initAdminApp() {
-      // Tab Navigation (進入系統全域設定需驗證管理密碼)
+      // Tab Navigation (進入系統全域設定與行政端課表管理需驗證管理密碼)
       const tabBtns = document.querySelectorAll('.admin-tab-btn');
       const tabPanes = document.querySelectorAll('.tab-pane');
       let isSettingsTabUnlocked = false;
+      let isTimetableAdminUnlocked = false;
+
+      // 檢查是否從首頁或免密碼入口進入 (source=portal)
+      const urlParamsObj = new URLSearchParams(window.location.search);
+      const isPortalParam = urlParamsObj.get('source') === 'portal' || (typeof SERVER_URL_PARAMS !== 'undefined' && SERVER_URL_PARAMS.source === 'portal') || (typeof IS_PORTAL_MODE !== 'undefined' && IS_PORTAL_MODE);
 
       function activateAdminTab(targetTab) {
         // 若欲進入「系統全域設定」分頁，且尚未通過解鎖驗證
@@ -1925,6 +1936,27 @@ td.current-period-cell::after {
             return;
           }
           // 驗證成功，解鎖本次工作階段
+          isSettingsTabUnlocked = true;
+          isTimetableAdminUnlocked = true;
+        }
+
+        // 若從行政核銷端欲進入「全校課表查詢與管理」分頁，且尚未通過解鎖驗證
+        if (targetTab === 'tab-timetable' && !isPortalParam && !isTimetableAdminUnlocked && !isSettingsTabUnlocked) {
+          const validKey = localStorage.getItem('gas_secret_key') || '087525402';
+          const entered = prompt('🔒 權限驗證：從行政後台進入「全校課表查詢與管理」需管理權限，請輸入安全管理金鑰密碼：');
+          if (entered === null) {
+            return; // 使用者按取消，留在原分頁
+          }
+          if (!entered.trim()) {
+            alert('⚠️ 請輸入安全管理金鑰密碼！');
+            return;
+          }
+          if (entered.trim() !== validKey) {
+            alert('❌ 密碼錯誤！無法進入全校課表管理專區。');
+            return;
+          }
+          // 驗證成功，解鎖本次工作階段
+          isTimetableAdminUnlocked = true;
           isSettingsTabUnlocked = true;
         }
 
@@ -1945,6 +1977,20 @@ td.current-period-cell::after {
           } else {
             navTtItem.classList.remove('active');
             if (navAdminItem) navAdminItem.classList.add('active');
+          }
+        }
+
+        // 控制「展開管理專區」顯示狀態：
+        // 1. 從首頁入口/首頁選單進入：完全不顯示管理專區
+        // 2. 從行政核銷端經密碼解鎖後：顯示管理專區供排課匯入使用
+        const importPanel = document.getElementById('admin-import-panel');
+        if (importPanel) {
+          if (isPortalParam) {
+            importPanel.style.display = 'none';
+          } else if (isTimetableAdminUnlocked || isSettingsTabUnlocked) {
+            importPanel.style.display = 'block';
+          } else {
+            importPanel.style.display = 'none';
           }
         }
 

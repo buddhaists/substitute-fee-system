@@ -566,7 +566,7 @@ footer {
         <a href="<?= baseNavUrl ? baseNavUrl : 'javascript:void(0);' ?>" class="nav-item active" target="_top" data-page="" onclick="navTo(''); return false;">
           <i class="fa-solid fa-house"></i> 首頁入口
         </a>
-        <a href="<?= baseNavUrl ? baseNavUrl + '?page=admin&tab=timetable' : 'javascript:void(0);' ?>" class="nav-item" target="_top" data-page="admin" onclick="navTo('admin', {tab: 'timetable'}); return false;">
+        <a href="<?= baseNavUrl ? baseNavUrl + '?page=admin&tab=timetable&source=portal' : 'javascript:void(0);' ?>" class="nav-item" target="_top" data-page="admin" onclick="navTo('admin', {tab: 'timetable', source: 'portal'}); return false;">
           <i class="fa-solid fa-calendar-days"></i> 全校課表查詢
         </a>
         <a href="<?= baseNavUrl ? baseNavUrl + '?page=teacher' : 'javascript:void(0);' ?>" class="nav-item" target="_top" data-page="teacher" onclick="navTo('teacher'); return false;">
@@ -587,7 +587,7 @@ footer {
     <div class="grid-portal">
 
       <!-- Timetable Portal Link (Integrated) -->
-      <a href="<?= appUrl ?>?page=admin&tab=timetable" class="portal-card timetable-card scroll-trigger stagger-1" target="_top" onclick="navTo('admin', {tab: 'timetable'}); return false;">
+      <a href="<?= appUrl ?>?page=admin&tab=timetable&source=portal" class="portal-card timetable-card scroll-trigger stagger-1" target="_top" onclick="navTo('admin', {tab: 'timetable', source: 'portal'}); return false;">
         <div class="icon-wrapper">
           <i class="fa-solid fa-calendar-days"></i>
         </div>
@@ -771,7 +771,7 @@ footer {
         var p = el.getAttribute('data-page');
         var oldHref = el.getAttribute('href') || '';
         if (p === 'admin' && oldHref.indexOf('tab=timetable') !== -1) {
-          el.href = base + '?page=admin&tab=timetable';
+          el.href = base + '?page=admin&tab=timetable&source=portal';
         } else {
           el.href = p ? (base + '?page=' + p) : base;
         }
