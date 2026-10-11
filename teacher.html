@@ -1137,7 +1137,12 @@ input[type="checkbox"] {
       if (!base) return;
       document.querySelectorAll('.top-navbar a[data-page]').forEach(function(el) {
         var p = el.getAttribute('data-page');
-        el.href = p ? (base + '?page=' + p) : base;
+        var oldHref = el.getAttribute('href') || '';
+        if (p === 'admin' && oldHref.indexOf('tab=timetable') !== -1) {
+          el.href = base + '?page=admin&tab=timetable';
+        } else {
+          el.href = p ? (base + '?page=' + p) : base;
+        }
       });
     }
 

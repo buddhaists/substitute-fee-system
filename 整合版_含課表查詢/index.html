@@ -769,13 +769,18 @@ footer {
       if (!base) return;
       document.querySelectorAll('.top-navbar a[data-page]').forEach(function(el) {
         var p = el.getAttribute('data-page');
-        el.href = p ? (base + '?page=' + p) : base;
+        var oldHref = el.getAttribute('href') || '';
+        if (p === 'admin' && oldHref.indexOf('tab=timetable') !== -1) {
+          el.href = base + '?page=admin&tab=timetable';
+        } else {
+          el.href = p ? (base + '?page=' + p) : base;
+        }
       });
       document.querySelectorAll('.grid-portal a.portal-card').forEach(function(el) {
         var href = el.getAttribute('href') || '';
         if (href.indexOf('?page=') !== -1) {
-          var p = href.split('?page=')[1].split('&')[0];
-          el.href = base + '?page=' + p;
+          var queryPart = href.split('?')[1] || '';
+          el.href = base + (queryPart ? ('?' + queryPart) : '');
         }
       });
     }

@@ -848,6 +848,7 @@ td.current-period-cell::after {
     var rawUrl = (typeof appUrl !== 'undefined' && appUrl) ? appUrl : ((typeof scriptUrl !== 'undefined' && scriptUrl) ? scriptUrl : '');
     var baseNavUrl = rawUrl ? rawUrl.split('?')[0] : '';
   ?>
+  <? var isTimetableTab = (typeof urlParams !== 'undefined' && urlParams && (urlParams.tab === 'timetable' || urlParams.page === 'timetable')); ?>
   <? var settingsData = (typeof systemSettings !== 'undefined' && systemSettings) ? JSON.stringify(systemSettings) : '{}'; ?>
   <? var initialScheduleDataRaw = (typeof initialScheduleData !== 'undefined' && initialScheduleData) ? initialScheduleData : 'null'; ?>
   <? var urlParamsData = (typeof urlParams !== 'undefined' && urlParams) ? JSON.stringify(urlParams) : '{}'; ?>
@@ -856,6 +857,28 @@ td.current-period-cell::after {
     var SERVER_SYSTEM_SETTINGS = <?!= settingsData ?>;
     var SERVER_SCHEDULE_DATA_RAW = <?!= initialScheduleDataRaw ?>;
     var SERVER_URL_PARAMS = <?!= urlParamsData ?>;
+    var IS_TIMETABLE_TAB = <?= isTimetableTab ? 'true' : 'false' ?>;
+
+    // ⚡【0ms 瞬開引擎】：在所有 DOM 解析前，搶先還原本地快取並與伺服端資料同步
+    var PRELOAD_TIMETABLE_DB = null;
+    (function() {
+      try {
+        var rawLocal = localStorage.getItem('sub_timetable_data_cache_v2');
+        if (rawLocal) {
+          var parsed = JSON.parse(rawLocal);
+          if (parsed && (parsed.classes || parsed.db)) PRELOAD_TIMETABLE_DB = parsed;
+        }
+        if (SERVER_SCHEDULE_DATA_RAW) {
+          var parsedS = (typeof SERVER_SCHEDULE_DATA_RAW === 'string') ? JSON.parse(SERVER_SCHEDULE_DATA_RAW) : SERVER_SCHEDULE_DATA_RAW;
+          var sData = (parsedS && parsedS.success && parsedS.data) ? parsedS.data : parsedS;
+          if (sData && (sData.classes || sData.db)) {
+            PRELOAD_TIMETABLE_DB = sData;
+            localStorage.setItem('sub_timetable_data_cache_v2', JSON.stringify(sData));
+            localStorage.setItem('sub_timetable_cache_timestamp', String(Date.now()));
+          }
+        }
+      } catch(e) {}
+    })();
   </script>
   
   <div class="container">
@@ -869,13 +892,13 @@ td.current-period-cell::after {
         <a href="<?= baseNavUrl ? baseNavUrl : 'javascript:void(0);' ?>" class="nav-item" target="_top" data-page="" onclick="navTo(''); return false;">
           <i class="fa-solid fa-house"></i> 首頁入口
         </a>
-        <a href="javascript:void(0);" class="nav-item" id="nav-item-timetable" target="_top" data-page="timetable" onclick="activateAdminTab('tab-timetable'); return false;">
+        <a href="javascript:void(0);" class="nav-item <?= isTimetableTab ? 'active' : '' ?>" id="nav-item-timetable" target="_top" data-page="timetable" onclick="activateAdminTab('tab-timetable'); return false;">
           <i class="fa-solid fa-calendar-days"></i> 全校課表查詢
         </a>
         <a href="<?= baseNavUrl ? baseNavUrl + '?page=teacher' : 'javascript:void(0);' ?>" class="nav-item" target="_top" data-page="teacher" onclick="navTo('teacher'); return false;">
           <i class="fa-solid fa-file-signature"></i> 教師交接端
         </a>
-        <a href="<?= baseNavUrl ? baseNavUrl + '?page=admin' : 'javascript:void(0);' ?>" class="nav-item active" id="nav-item-admin" target="_top" data-page="admin" onclick="navTo('admin'); return false;">
+        <a href="<?= baseNavUrl ? baseNavUrl + '?page=admin' : 'javascript:void(0);' ?>" class="nav-item <?= isTimetableTab ? '' : 'active' ?>" id="nav-item-admin" target="_top" data-page="admin" onclick="navTo('admin'); return false;">
           <i class="fa-solid fa-calculator"></i> 行政核銷端
         </a>
       </div>
@@ -899,13 +922,13 @@ td.current-period-cell::after {
 
     <!-- ADMIN TABS SWITCHER -->
     <div class="admin-tabs">
-      <button class="admin-tab-btn active" data-tab="tab-records">
+      <button class="admin-tab-btn <?= isTimetableTab ? '' : 'active' ?>" data-tab="tab-records">
         <i class="fa-solid fa-calendar-check"></i> 1. 代課核銷結算
       </button>
       <button class="admin-tab-btn" data-tab="tab-settings">
         <i class="fa-solid fa-sliders"></i> 2. 系統全域設定 <i class="fa-solid fa-lock" style="font-size: 0.75rem; opacity: 0.7; margin-left: 0.25rem;"></i>
       </button>
-      <button class="admin-tab-btn" data-tab="tab-timetable">
+      <button class="admin-tab-btn <?= isTimetableTab ? 'active' : '' ?>" data-tab="tab-timetable">
         <i class="fa-solid fa-calendar-week"></i> 3. 全校課表查詢與管理
       </button>
     </div>
@@ -913,7 +936,7 @@ td.current-period-cell::after {
     <!-- ============================================================= -->
     <!-- TAB 1: 代課核銷結算 -->
     <!-- ============================================================= -->
-    <div class="tab-pane active" id="tab-records">
+    <div class="tab-pane <?= isTimetableTab ? '' : 'active' ?>" id="tab-records">
       
       <!-- MONTHLY SETTLEMENT OVERVIEW -->
       <section class="panel">
@@ -1223,7 +1246,7 @@ td.current-period-cell::after {
     <!-- ============================================================= -->
     <!-- TAB 3: 全校課表查詢與管理 (Timetable Inquiry & Management)   -->
     <!-- ============================================================= -->
-    <div class="tab-pane" id="tab-timetable">
+    <div class="tab-pane <?= isTimetableTab ? 'active' : '' ?>" id="tab-timetable">
       
       <!-- 頂部課表看板狀態橫幅與即時時鐘 -->
       <div style="background: white; padding: 1rem 1.25rem; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: var(--shadow); margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
@@ -1864,7 +1887,12 @@ td.current-period-cell::after {
       if (!base) return;
       document.querySelectorAll('.top-navbar a[data-page]').forEach(function(el) {
         var p = el.getAttribute('data-page');
-        el.href = p ? (base + '?page=' + p) : base;
+        var oldHref = el.getAttribute('href') || '';
+        if (p === 'timetable' || (p === 'admin' && oldHref.indexOf('tab=timetable') !== -1)) {
+          el.href = base + '?page=admin&tab=timetable';
+        } else {
+          el.href = p ? (base + '?page=' + p) : base;
+        }
       });
     }
 
@@ -1874,7 +1902,7 @@ td.current-period-cell::after {
 
     const isGasEnv = typeof google !== 'undefined' && google.script && google.script.run;
 
-    document.addEventListener('DOMContentLoaded', () => {
+    function initAdminApp() {
       // Tab Navigation (進入系統全域設定需驗證管理密碼)
       const tabBtns = document.querySelectorAll('.admin-tab-btn');
       const tabPanes = document.querySelectorAll('.tab-pane');
@@ -1924,6 +1952,13 @@ td.current-period-cell::after {
         if (targetTab === 'tab-timetable' && typeof setupUI === 'function') {
           if (!isUIRendered) {
             setupUI();
+          }
+        }
+
+        // 若切換至代課核銷結算且尚未載入資料，按需觸發一次同步
+        if (targetTab === 'tab-records' && isGasEnv && typeof syncCloudData === 'function') {
+          if (typeof allRecords !== 'undefined' && (!allRecords || allRecords.length === 0)) {
+            syncCloudData(true);
           }
         }
       }
@@ -2770,8 +2805,8 @@ td.current-period-cell::after {
       btnSync.addEventListener('click', () => syncCloudData(false));
       selectMonth.addEventListener('change', () => syncCloudData(true));
 
-      // 頁面初次載入時自動非同步同步一次資料
-      if (isGasEnv) {
+      // 頁面初次載入時自動非同步同步一次資料（若當前為課表分頁則延遲按需加載，將 100% 頻寬與 CPU 留給課表瞬開）
+      if (isGasEnv && !IS_TIMETABLE_TAB) {
         syncCloudData(true);
       }
 
@@ -3231,23 +3266,25 @@ td.current-period-cell::after {
       // ============================================================
       const LOCAL_CACHE_KEY = 'sub_timetable_data_cache_v2';
       const LOCAL_CACHE_TIME_KEY = 'sub_timetable_cache_timestamp';
-      let DB = null;
+      let DB = (typeof PRELOAD_TIMETABLE_DB !== 'undefined' && PRELOAD_TIMETABLE_DB) ? PRELOAD_TIMETABLE_DB : null;
       let isUIRendered = false;
 
-      // 1. 【第 0 毫秒極速還原】在腳本執行的瞬間，直接從瀏覽器本地快取還原完整課表！
-      try {
-        const localCachedStr = localStorage.getItem(LOCAL_CACHE_KEY);
-        if (localCachedStr) {
-          const parsedLocal = JSON.parse(localCachedStr);
-          if (parsedLocal && (parsedLocal.classes || parsedLocal.db)) {
-            DB = parsedLocal;
-            console.log("⚡ [0ms 瞬開] 成功由本地 LocalStorage 還原課表！");
+      // 1. 【第 0 毫秒極速還原】若預載物件不存在，自本地快取還原
+      if (!DB) {
+        try {
+          const localCachedStr = localStorage.getItem(LOCAL_CACHE_KEY);
+          if (localCachedStr) {
+            const parsedLocal = JSON.parse(localCachedStr);
+            if (parsedLocal && (parsedLocal.classes || parsedLocal.db)) {
+              DB = parsedLocal;
+              console.log("⚡ [0ms 瞬開] 成功由本地 LocalStorage 還原課表！");
+            }
           }
-        }
-      } catch (e) {}
+        } catch (e) {}
+      }
 
       // 2. 解析伺服端注入資料 (若後端有帶最新快取資料，安靜更新本地快取)
-      if (typeof SERVER_SCHEDULE_DATA_RAW !== 'undefined' && SERVER_SCHEDULE_DATA_RAW) {
+      if (!DB && typeof SERVER_SCHEDULE_DATA_RAW !== 'undefined' && SERVER_SCHEDULE_DATA_RAW) {
         try {
           let parsedServer = (typeof SERVER_SCHEDULE_DATA_RAW === 'string') ? JSON.parse(SERVER_SCHEDULE_DATA_RAW) : SERVER_SCHEDULE_DATA_RAW;
           let serverData = (parsedServer && parsedServer.success && parsedServer.data) ? parsedServer.data : parsedServer;
@@ -4199,7 +4236,13 @@ td.current-period-cell::after {
       if (initialTabParam === 'timetable' || initialPageParam === 'timetable' || (typeof SERVER_URL_PARAMS !== 'undefined' && (SERVER_URL_PARAMS.tab === 'timetable' || SERVER_URL_PARAMS.page === 'timetable'))) {
         activateAdminTab('tab-timetable');
       }
-    });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initAdminApp);
+    } else {
+      initAdminApp();
+    }
   </script>
 </body>
 </html>
