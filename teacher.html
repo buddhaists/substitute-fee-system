@@ -658,7 +658,7 @@ input[type="checkbox"] {
         <a href="<?= baseNavUrl ? baseNavUrl : 'javascript:void(0);' ?>" class="nav-item" target="_top" data-page="" onclick="navTo(''); return false;">
           <i class="fa-solid fa-house"></i> 首頁入口
         </a>
-        <a href="<?= baseNavUrl ? baseNavUrl + '?page=timetable' : 'javascript:void(0);' ?>" class="nav-item" target="_top" data-page="timetable" onclick="navTo('timetable'); return false;">
+        <a href="<?= baseNavUrl ? baseNavUrl + '?page=admin&tab=timetable' : 'javascript:void(0);' ?>" class="nav-item" target="_top" data-page="admin" onclick="navTo('admin', {tab: 'timetable'}); return false;">
           <i class="fa-solid fa-calendar-days"></i> 全校課表查詢
         </a>
         <a href="<?= baseNavUrl ? baseNavUrl + '?page=teacher' : 'javascript:void(0);' ?>" class="nav-item active" target="_top" data-page="teacher" onclick="navTo('teacher'); return false;">

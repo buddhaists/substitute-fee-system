@@ -8,15 +8,14 @@
 
 ## 📁 GAS 線上部署檔案清單
 
-在 Google 試算表內點選「擴充功能」➔「Apps Script」，請在左側檔案清單建立以下 5 個核心檔案並貼入對應內容：
+在 Google 試算表內點選「擴充功能」➔「Apps Script」，請在左側檔案清單建立以下 4 個核心檔案並貼入對應內容：
 
 | 檔案名稱 | 類型 | 功能說明 |
 | :--- | :--- | :--- |
-| **Code.gs** | 程式碼檔 (.gs) | 雙系統後端核心：路由控制、課表讀取 (getScheduleData)、代課紀錄寫入與月度結算 |
-| **index.html** | HTML 檔 (.html) | **三合一系統入口首頁**：包含課表查詢、教師交接、行政核銷三大卡片門戶 |
-| **timetable.html** | HTML 檔 (.html) | **全校課表查詢端**：班級/科任/專科教室三合一、即時時鐘、當前節次高亮、**一鍵申報代課** |
+| **Code.gs** | 程式碼檔 (.gs) | 雙系統後端核心：路由控制、快取直出、課表讀取 (getScheduleData)、代課紀錄寫入與月度結算 |
+| **index.html** | HTML 檔 (.html) | **系統入口首頁**：Scroll-triggered 動畫、Tiffany Green 主題，包含課表查詢、教師交接、行政核銷三大門戶 |
 | **teacher.html** | HTML 檔 (.html) | **教師交接端**：請假交接、A4紙本列印、支援從課表帶入參數自動選取班級與勾選節次 |
-| **admin.html** | HTML 檔 (.html) | **行政核銷端**：月度結算、金鑰雙重防護、課表矩陣檢視、印領清冊匯出備份 |
+| **admin.html** | HTML 檔 (.html) | **全校課表查詢與管理端＋行政核銷端**：班級/科任/專科教室三合一、即時查堂找代課、課表批次匯入、月度結算、金鑰防護 |
 
 > 💡 備註：專案資料夾內亦包含本機 Python 核銷印領清冊腳本 (generate_voucher.py) 與範本 (印領清冊113.xlsx)。
 
@@ -47,9 +46,8 @@
 
 1. 開啟您的 Google 試算表，點選上方選單 **「擴充功能」➔「Apps Script」**。
 2. 將預設的 程式碼.gs 內容替換為本目錄的 **Code.gs**。
-3. 點選左側「**+**」➔「**HTML**」，分別建立以下 4 個檔案並貼入對應內容：
+3. 點選左側「**+**」➔「**HTML**」，分別建立以下 3 個檔案並貼入對應內容：
    - 檔名輸入 `index`，貼入 index.html
-   - 檔名輸入 `timetable`，貼入 timetable.html
    - 檔名輸入 `teacher`，貼入 teacher.html
    - 檔名輸入 `admin`，貼入 admin.html
 4. 按 **Ctrl + S** 儲存全部檔案。
@@ -64,8 +62,8 @@
 
 ## 🌐 系統各模組存取網址
 
-- **🏠 三合一入口首頁**：https://script.google.com/macros/s/.../exec
-- **📅 全校課表查詢**：https://script.google.com/macros/s/.../exec?page=timetable
+- **🏠 入口首頁**：https://script.google.com/macros/s/.../exec
+- **📅 全校課表查詢**：https://script.google.com/macros/s/.../exec?page=admin&tab=timetable （舊網址 `?page=timetable` 自動無縫導向）
 - **✍️ 教師交接端**：https://script.google.com/macros/s/.../exec?page=teacher
 - **💼 行政核銷端**：https://script.google.com/macros/s/.../exec?page=admin
 
