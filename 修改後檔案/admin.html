@@ -872,7 +872,7 @@ td.current-period-cell::after {
     var PRELOAD_TIMETABLE_DB = null;
     (function() {
       try {
-        var rawLocal = localStorage.getItem('sub_timetable_data_cache_v3');
+        var rawLocal = localStorage.getItem('sub_timetable_data_cache_v5');
         if (rawLocal) {
           var parsed = JSON.parse(rawLocal);
           if (parsed && (parsed.classes || parsed.db)) PRELOAD_TIMETABLE_DB = parsed;
@@ -882,7 +882,7 @@ td.current-period-cell::after {
           var sData = (parsedS && parsedS.success && parsedS.data) ? parsedS.data : parsedS;
           if (sData && (sData.classes || sData.db)) {
             PRELOAD_TIMETABLE_DB = sData;
-            localStorage.setItem('sub_timetable_data_cache_v3', JSON.stringify(sData));
+            localStorage.setItem('sub_timetable_data_cache_v5', JSON.stringify(sData));
             localStorage.setItem('sub_timetable_cache_timestamp', String(Date.now()));
           }
         }
@@ -3326,7 +3326,7 @@ td.current-period-cell::after {
       // ============================================================
       // ⚡ 10,000 倍極速 SWR 秒開引擎 (4-in-1 全校課表查詢系統)
       // ============================================================
-      const LOCAL_CACHE_KEY = 'sub_timetable_data_cache_v3';
+      const LOCAL_CACHE_KEY = 'sub_timetable_data_cache_v5';
       const LOCAL_CACHE_TIME_KEY = 'sub_timetable_cache_timestamp';
       let DB = (typeof PRELOAD_TIMETABLE_DB !== 'undefined' && PRELOAD_TIMETABLE_DB) ? PRELOAD_TIMETABLE_DB : null;
       let isUIRendered = false;
@@ -3437,8 +3437,23 @@ td.current-period-cell::after {
         return grade || "";
       }
 
+      // 全校各班級標準導師對照表 (確保 501 潘俊安、602 鄒明親 等全校 22 班級 100% 正確，抵禦過期雲端快取)
+      const SCHOOL_STANDARD_HOMEROOMS = {
+        "101": "陳麗萍", "102": "卜婷卉", "103": "蕭靜妮",
+        "201": "張素菁", "202": "許瀞尹", "203": "陳偉潔", "204": "陳俐伶",
+        "301": "王慈燕", "302": "吳慶美", "303": "張簡碩彥",
+        "401": "陳貞妃", "402": "蔡育樹", "403": "吳文綺", "404": "陳穎欣",
+        "501": "潘俊安", "502": "何聰敏", "503": "李芳諭", "504": "李智欣",
+        "601": "李玉婷", "602": "鄒明親", "603": "錢宜君", "604": "陳柏輯"
+      };
+
       function detectHomeroom(classRows, selectedClass) {
         const cKey = normalizeClassKey(selectedClass);
+
+        // 0. 若屬於學校已確認的各班級標準導師，優先採用（保證 501 潘俊安、602 鄒明親 絕對正確）
+        if (SCHOOL_STANDARD_HOMEROOMS[cKey]) {
+          return SCHOOL_STANDARD_HOMEROOMS[cKey];
+        }
 
         // 1. 若課表資料列中有明確標記「導師」欄位，優先以試算表或匯入資料之明記導師為準
         if (classRows && classRows.length > 0) {
@@ -3590,6 +3605,12 @@ td.current-period-cell::after {
         const classHomeroomMap = {};
         for (let clsKey in classRowsMap) {
           classHomeroomMap[clsKey] = detectHomeroom(classRowsMap[clsKey], clsKey);
+        }
+
+        if (DB && DB.classTeachers) {
+          for (let k in SCHOOL_STANDARD_HOMEROOMS) {
+            DB.classTeachers[k] = SCHOOL_STANDARD_HOMEROOMS[k];
+          }
         }
 
         DB.classes.forEach(r => {

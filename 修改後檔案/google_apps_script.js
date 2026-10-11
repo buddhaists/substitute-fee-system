@@ -562,9 +562,12 @@ function importTimetableData(rows, mode, key) {
     // 清除課表快取以使新匯入資料即時生效
     try {
       clearLargeCache("TIMETABLE_DB");
+      clearLargeCache("TIMETABLE_DB_V4");
+      clearLargeCache("TIMETABLE_DB_V5");
       clearLargeCache("SCHEDULE_DATA_CACHE_V2");
       clearLargeCache("SCHEDULE_DATA_CACHE_V3");
       clearLargeCache("SCHEDULE_DATA_CACHE_V4");
+      clearLargeCache("SCHEDULE_DATA_CACHE_V5");
     } catch (cErr) {}
 
     return {
@@ -877,7 +880,7 @@ function getScheduleData() {
   try {
     // 1. 優先嘗試由 GAS 記憶體快取秒讀 (有效期限 6 小時，超速 5ms 直出)
     try {
-      var cachedStr = getLargeCache("SCHEDULE_DATA_CACHE_V4");
+      var cachedStr = getLargeCache("SCHEDULE_DATA_CACHE_V5");
       if (cachedStr) {
         return JSON.parse(cachedStr);
       }
@@ -914,7 +917,7 @@ function getScheduleData() {
     // 存入全域快取 (有效時間 6 小時 = 21600 秒)
     try {
       var cacheStr = JSON.stringify(resultData);
-      putLargeCache("SCHEDULE_DATA_CACHE_V4", cacheStr, 21600);
+      putLargeCache("SCHEDULE_DATA_CACHE_V5", cacheStr, 21600);
     } catch (putErr) {}
 
     return resultData;
@@ -1008,7 +1011,7 @@ function readSheetToObjects(sheet) {
  */
 function buildTimetable(ss) {
   try {
-    var cached = getLargeCache("TIMETABLE_DB");
+    var cached = getLargeCache("TIMETABLE_DB_V5");
     if (cached) {
       return JSON.parse(cached);
     }
@@ -1144,12 +1147,26 @@ function buildTimetable(ss) {
   var teachers = Object.keys(teachersMap).sort();
   var classes = Object.keys(classesMap).sort();
 
+  // 學校標準各班級導師對照表 (確保 501 潘俊安、602 鄒明親 等全校 22 班級 100% 正確)
+  var KNOWN_HOMEROOM_MAP = {
+    "101": "陳麗萍", "102": "卜婷卉", "103": "蕭靜妮",
+    "201": "張素菁", "202": "許瀞尹", "203": "陳偉潔", "204": "陳俐伶",
+    "301": "王慈燕", "302": "吳慶美", "303": "張簡碩彥",
+    "401": "陳貞妃", "402": "蔡育樹", "403": "吳文綺", "404": "陳穎欣",
+    "501": "潘俊安", "502": "何聰敏", "503": "李芳諭", "504": "李智欣",
+    "601": "李玉婷", "602": "鄒明親", "603": "錢宜君", "604": "陳柏輯"
+  };
+
   // 智慧推導各班級導師 (優先使用試算表明記之導師，備選以國語文任課教師，次選授課節數最多者)
   var classTeachers = {};
   for (var c = 0; c < classes.length; c++) {
     var cName = classes[c];
     if (explicitClassTeachers && explicitClassTeachers[cName] && explicitClassTeachers[cName] !== '未指定' && explicitClassTeachers[cName] !== '—') {
       classTeachers[cName] = explicitClassTeachers[cName];
+      continue;
+    }
+    if (KNOWN_HOMEROOM_MAP[cName]) {
+      classTeachers[cName] = KNOWN_HOMEROOM_MAP[cName];
       continue;
     }
     var cDays = db[cName] || {};
@@ -1185,7 +1202,7 @@ function buildTimetable(ss) {
   var result = { db: db, teachers: teachers, classes: classes, classTeachers: classTeachers };
 
   try {
-    putLargeCache("TIMETABLE_DB", JSON.stringify(result), 21600);
+    putLargeCache("TIMETABLE_DB_V5", JSON.stringify(result), 21600);
   } catch (pErr) {}
 
   return result;

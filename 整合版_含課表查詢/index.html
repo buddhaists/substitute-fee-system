@@ -828,7 +828,7 @@ footer {
       if (!isGasEnv) return;
 
       // 1. 預熱全校課表
-      const CACHE_KEY_TIMETABLE = 'sub_timetable_data_cache_v3';
+      const CACHE_KEY_TIMETABLE = 'sub_timetable_data_cache_v5';
       const CACHE_TIME_KEY_TIMETABLE = 'sub_timetable_cache_timestamp';
       try {
         const cachedTime = Number(localStorage.getItem(CACHE_TIME_KEY_TIMETABLE) || 0);
