@@ -840,29 +840,33 @@ td.current-period-cell::after {
   table.timetable th, table.timetable td { border: 1px solid #000 !important; }
   td.current-period-cell { outline: none !important; }
   td.current-period-cell::after { display: none; }
+  /* 首頁模式 (source=portal)：隱藏行政端導航分頁、設定金鑰齒輪與排課管理專區 */
+  body.portal-mode #admin-tabs-nav,
+  body.portal-mode #btn-open-settings,
+  body.portal-mode #admin-import-panel {
+    display: none !important;
+  }
 }
   </style>
 </head>
-<body>
-  <? 
-    var rawUrl = (typeof appUrl !== 'undefined' && appUrl) ? appUrl : ((typeof scriptUrl !== 'undefined' && scriptUrl) ? scriptUrl : '');
-    var baseNavUrl = rawUrl ? rawUrl.split('?')[0] : '';
-  ?>
-  <? 
-    var isPortalMode = (typeof urlParams !== 'undefined' && urlParams && urlParams.source === 'portal');
-    var isTimetableTab = (typeof urlParams !== 'undefined' && urlParams && (urlParams.tab === 'timetable' || urlParams.page === 'timetable')); 
-    var isDirectTimetableActive = (isPortalMode && isTimetableTab);
-    var settingsData = (typeof systemSettings !== 'undefined' && systemSettings) ? JSON.stringify(systemSettings) : '{}'; 
-    var initialScheduleDataRaw = (typeof initialScheduleData !== 'undefined' && initialScheduleData) ? initialScheduleData : 'null'; 
-    var urlParamsData = (typeof urlParams !== 'undefined' && urlParams) ? JSON.stringify(urlParams) : '{}'; 
-  ?>
+<? 
+  var rawUrl = (typeof appUrl !== 'undefined' && appUrl) ? appUrl : ((typeof scriptUrl !== 'undefined' && scriptUrl) ? scriptUrl : '');
+  var baseNavUrl = rawUrl ? rawUrl.split('?')[0] : '';
+  var isPortalMode = (typeof urlParams !== 'undefined' && urlParams && urlParams.source === 'portal');
+  var isTimetableTab = (typeof urlParams !== 'undefined' && urlParams && (urlParams.tab === 'timetable' || urlParams.page === 'timetable')); 
+  var isDirectTimetableActive = (isPortalMode && isTimetableTab);
+  var settingsData = (typeof systemSettings !== 'undefined' && systemSettings) ? JSON.stringify(systemSettings) : '{}'; 
+  var initialScheduleDataRaw = (typeof initialScheduleData !== 'undefined' && initialScheduleData) ? initialScheduleData : 'null'; 
+  var urlParamsData = (typeof urlParams !== 'undefined' && urlParams) ? JSON.stringify(urlParams) : '{}'; 
+?>
+<body class="<?!= isPortalMode ? 'portal-mode' : '' ?>">
   <script>
     var SERVER_APP_URL = "<?= baseNavUrl ?>";
     var SERVER_SYSTEM_SETTINGS = <?!= settingsData ?>;
     var SERVER_SCHEDULE_DATA_RAW = <?!= initialScheduleDataRaw ?>;
     var SERVER_URL_PARAMS = <?!= urlParamsData ?>;
-    var IS_TIMETABLE_TAB = <?= isTimetableTab ? 'true' : 'false' ?>;
-    var IS_PORTAL_MODE = <?= isPortalMode ? 'true' : 'false' ?>;
+    var IS_TIMETABLE_TAB = <?!= isTimetableTab ? 'true' : 'false' ?>;
+    var IS_PORTAL_MODE = <?!= isPortalMode ? 'true' : 'false' ?>;
 
     // ⚡【0ms 瞬開引擎】：在所有 DOM 解析前，搶先還原本地快取並與伺服端資料同步
     var PRELOAD_TIMETABLE_DB = null;
@@ -921,13 +925,13 @@ td.current-period-cell::after {
       </div>
       
       <!-- Settings Cog (管理端專屬) -->
-      <button class="settings-trigger" id="btn-open-settings" title="安全金鑰與連線設定" style="<?= isPortalMode ? 'display: none !important;' : '' ?>">
+      <button class="settings-trigger" id="btn-open-settings" title="安全金鑰與連線設定" <?!= isPortalMode ? 'style="display: none !important;"' : '' ?>>
         <i class="fa-solid fa-key"></i>
       </button>
     </header>
 
     <!-- ADMIN TABS SWITCHER (管理端專屬分頁切換) -->
-    <div class="admin-tabs" id="admin-tabs-nav" style="<?= isPortalMode ? 'display: none !important;' : '' ?>">
+    <div class="admin-tabs" id="admin-tabs-nav" <?!= isPortalMode ? 'style="display: none !important;"' : '' ?>>
       <button class="admin-tab-btn <?= isDirectTimetableActive ? '' : 'active' ?>" data-tab="tab-records">
         <i class="fa-solid fa-calendar-check"></i> 1. 代課核銷結算
       </button>
@@ -1917,7 +1921,19 @@ td.current-period-cell::after {
 
       // 檢查是否從首頁或免密碼入口進入 (source=portal)
       const urlParamsObj = new URLSearchParams(window.location.search);
-      const isPortalParam = urlParamsObj.get('source') === 'portal' || (typeof SERVER_URL_PARAMS !== 'undefined' && SERVER_URL_PARAMS.source === 'portal') || (typeof IS_PORTAL_MODE !== 'undefined' && IS_PORTAL_MODE);
+      const isPortalParam = (urlParamsObj.get('source') === 'portal') || 
+                            (typeof SERVER_URL_PARAMS !== 'undefined' && SERVER_URL_PARAMS.source === 'portal') || 
+                            (typeof IS_PORTAL_MODE !== 'undefined' && (IS_PORTAL_MODE === true || IS_PORTAL_MODE === 'true'));
+
+      if (isPortalParam) {
+        document.body.classList.add('portal-mode');
+        const tabsNav = document.getElementById('admin-tabs-nav');
+        if (tabsNav) tabsNav.style.setProperty('display', 'none', 'important');
+        const btnSettings = document.getElementById('btn-open-settings');
+        if (btnSettings) btnSettings.style.setProperty('display', 'none', 'important');
+        const importPanel = document.getElementById('admin-import-panel');
+        if (importPanel) importPanel.style.setProperty('display', 'none', 'important');
+      }
 
       function activateAdminTab(targetTab) {
         // 若欲進入「系統全域設定」分頁，且尚未通過解鎖驗證
